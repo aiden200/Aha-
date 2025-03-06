@@ -12,7 +12,7 @@ Most video-language models process videos continuously or respond at fixed inter
 # Installation
 1. Create conda environment and use pip to install some packages
 ```shell
-pip clone https://github.com/aiden200/Aha-.git
+git clone --recurse-submodules https://github.com/aiden200/Aha-.git
 cd aha
 
 conda create -n aha python=3.10
@@ -23,8 +23,7 @@ pip install -r requirements.txt
 
 2. Install llava following the instructions in [https://github.com/LLaVA-VL/LLaVA-NeXT](https://github.com/LLaVA-VL/LLaVA-NeXT)
 ```bash
-git clone https://github.com/LLaVA-VL/LLaVA-NeXT
-cd LLaVA-NeXT
+cd LLaVA_NeXT
 pip install -e ".[train]"
 ```
 
@@ -33,9 +32,18 @@ pip install -e ".[train]"
 4. Download MMDuet checkpoints from HuggingFace: [https://huggingface.co/wangyueqian/MMDuet](https://huggingface.co/wangyueqian/MMDuet) and put the files under folder `./outputs/mmduet`.
 
 # Inference
-## Download model and data
+## Download Our model
 
+
+
+# Training
+
+## Download pretrained MMDuet Model
 - Download our data annotation for training (MMDuetIT) and evaluation from [wangyueqian/MMDuetIT](https://huggingface.co/datasets/wangyueqian/MMDuetIT) and put them in `datasets` folder.
+
+
+## Download the tvsum dataset
+Follow the instructions from the official [tvsum](https://github.com/yalesong/tvsum?tab=readme-ov-file) repository
 
 <!-- - Download the videos, and link each video folder to `datasets/${DATASET_NAME}/videos`. Here we list recommended video download links, while you can also download from other sources:
   - YouCook2: [https://opendatalab.com/OpenDataLab/YouCook2](https://opendatalab.com/OpenDataLab/YouCook2)
@@ -46,10 +54,14 @@ pip install -e ".[train]"
 - Download [paraphrase-en.gz](https://github.com/lichengunc/refer/raw/refs/heads/master/evaluation/meteor/data/paraphrase-en.gz) (59MB) which is used for dense video captioning evaluation. Put this file at `test/dvc/metrics/data/paraphrase-en.gz` -->
 
 
+
+
+
 # Acknowledgment
-The following projects has been of great help to this work. Our codebase is built off of the MMDuet codebase:
-- [MMDuet](https://github.com/yellow-binary-tree/MMDuet)
-- [LLaVA-NeXT](https://github.com/LLaVA-VL/LLaVA-NeXT) for providing awesome multi-modal foundation models,
+We are building off of these projects. Our codebase is built off of the MMDuet codebase:
+- [MMDuet](https://github.com/yellow-binary-tree/MMDuet) 
+- [LLaVA-NeXT](https://github.com/LLaVA-VL/LLaVA-NeXT) 
+- [TVSUM](https://github.com/yalesong/tvsum) 
 
 <!-- 
 ## Inference and evaluation

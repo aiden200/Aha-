@@ -1,0 +1,3 @@
+[submodule "LLaVA_NeXT"]
+	path = LLaVA_NeXT
+	url = https://github.com/LLaVA-VL/LLaVA-NeXT
