@@ -1,4 +1,5 @@
-import collections, math, json, copy
+import collections, math, json, copy, random, os
+import cv2
 from dataclasses import asdict
 from tqdm import tqdm
 import numpy as np
@@ -246,95 +247,115 @@ def round_numbers(data, n):
     return data
 
 
+
+
+
+
+
+def load_video_for_testing(video_file):
+    output_fps=2
+    output_resolution=384
+    max_num_frames=100
+    pad_color = (0, 0, 0)
+    cap = cv2.VideoCapture(video_file)
+    # Get original video properties
+    input_fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    video_duration = frame_count / input_fps
+    input_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    input_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    output_width = output_height = output_resolution
+
+    output_fps = output_fps if output_fps > 0 else max_num_frames / video_duration
+    num_frames_total = math.ceil(video_duration * output_fps)
+    frame_sec = [i / output_fps for i in range(num_frames_total)]
+    frame_list, cur_time, frame_index = [], 0, 0
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        if frame_index < len(frame_sec) and cur_time >= frame_sec[frame_index]:
+            if input_width > input_height:
+                # Landscape video: scale width to the resolution, adjust height
+                new_width = output_resolution
+                new_height = int((input_height / input_width) * output_resolution)
+            else:
+                # Portrait video: scale height to the resolution, adjust width
+                new_height = output_resolution
+                new_width = int((input_width / input_height) * output_resolution)
+            resized_frame = cv2.resize(frame, (new_width, new_height))
+            # pad the frame
+            canvas = cv2.copyMakeBorder(
+                resized_frame,
+                top=(output_height - new_height) // 2,
+                bottom=(output_height - new_height + 1) // 2,
+                left=(output_width - new_width) // 2,
+                right=(output_width - new_width + 1) // 2,
+                borderType=cv2.BORDER_CONSTANT,
+                value=pad_color
+            )
+            frame_list.append(np.transpose(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB), (2, 0, 1)))
+            frame_index += 1
+        if len(frame_list) >= max_num_frames:
+            break
+        cur_time += 1 / input_fps
+    cap.release()
+
+    return torch.tensor(np.stack(frame_list)), output_fps, video_duration
+
+
+
+
+
+
 if __name__ == '__main__':
+
+    query_templates = [
+        "%s",
+        "%s",
+        "What segment of the video addresses the topic '%s'?",
+        "At what timestamp can I find information about '%s' in the video?",
+        "Can you highlight the section of the video that pertains to '%s'?",
+        "Which moments in the video discuss '%s' in detail?",
+        "Identify the parts that mention '%s'.",
+        "Where in the video is '%s' demonstrated or explained?",
+        "What parts are relevant to the concept of '%s'?",
+        "Which clips in the video relate to the query '%s'?",
+        "Can you point out the video segments that cover '%s'?",
+        "What are the key timestamps in the video for the topic '%s'?"
+    ]
+
+    system_prompt="A multimodal AI assistant is helping users with some activities. \
+        Below is their conversation, interleaved with the list of video frames received by the assistant."
+
+
     args = parse_args('test')
     print(args)
-    dataset = FastAndAccurateStreamingVideoQADataset(
-        data_file=args.test_fname, video_base_folder=args.input_dir,
-        start_idx=args.start_idx, end_idx=args.end_idx,
-        output_fps=args.frame_fps, output_resolution=args.frame_resolution, max_num_frames=args.max_num_frames,
-        time_instruction_format=args.time_instruction_format, system_prompt=args.system_prompt
-    )
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4, collate_fn=DoNothingDataCollator())
-
     infer = LiveInferForBenchmark(args)
+    vide_metadata_file = None
+    with open(vide_metadata_file, 'r') as f:
+        data = json.load(f)
+
     f_out = open(args.output_fname, 'w')
+    video_uuid = data.get('video_uuid')
+    video_path = data.get('video_path')
 
-    if args.is_online_model:
-        if not args.grounding_mode:
-            for data_i, data in enumerate(tqdm(dataloader)):
-                question_id, video_frames, conversation, fps, video_duration = data
-                if question_id is None: continue
-                infer.reset()
-                print(f"num frames and fps for {question_id}: {len(video_frames)}, {fps}")
-                infer.set_fps(fps=fps)
-                infer.input_video_stream(video_frames)
-                infer.input_query_stream(conversation)
-                model_response_list = infer.inference()
-                res = {'question_id': question_id, 'model_response_list': model_response_list, 'video_duration': video_duration}
-                res['debug_data'] = round_numbers(infer.debug_data_list, 3)
-                f_out.write(json.dumps(res) + '\n')
-                if data_i % 5 == 0:
-                    f_out.flush()
-            f_out.close()
+    video_frames, fps, video_duration = load_video_for_testing(video_path)    
 
-        else:
-            infer.first_n_frames_no_generate = 100000       # so the generation process is never called, we just want `relevance_score` results
-            for data_i, data in enumerate(tqdm(dataloader)):
-                question_id, video_frames, conversation, fps, video_duration = data
-                if question_id is None: continue
-                infer.reset()
-                print(f"num frames and fps for {question_id}: {len(video_frames)}, {fps}")
-                infer.set_fps(fps=fps)
-                infer.input_video_stream(video_frames)
-                infer.input_query_stream(conversation)
-                model_response_list = infer.inference()
-                res = {'question_id': question_id, 'model_response_list': model_response_list, 'video_duration': video_duration}
-                res['debug_data'] = round_numbers(infer.debug_data_list, 3)
-                f_out.write(json.dumps(res) + '\n')
-                if data_i % 5 == 0:
-                    f_out.flush()
-            f_out.close()
+    conversation = list()
+    conversation.append({"role": "system", "content": system_prompt})
+    conversation.append({'role': 'user', 'content': random.choice(query_templates) % data['query']})
 
-    else:
-        # llava onevision baseline
-        tokenizer, model, image_processor, max_length = load_pretrained_model(args.llm_pretrained, None, "llava_qwen", device_map="auto", attn_implementation=args.attn_implementation)  # Add any other thing you want to pass in llava_model_args
-        model.eval()
 
-        if args.lora_pretrained is not None:
-            print(f"loading lora ckpt from {args.lora_pretrained}, and setting mm_spatial_pool_stride to {args.video_pooling_stride}")
-            model = PeftModel.from_pretrained(model, args.lora_pretrained, is_trainable=False)
-            model.config.mm_spatial_pool_stride = args.video_pooling_stride
+    infer.reset()
+    print(f"num frames and fps for {video_uuid}: {len(video_frames)}, {fps}")
+    infer.set_fps(fps=fps)
+    infer.input_video_stream(video_frames)
+    infer.input_query_stream(conversation)
+    model_response_list = infer.inference()
+    res = {'video_uuid': video_uuid, 'model_response_list': model_response_list, 'video_duration': video_duration}
+    res['debug_data'] = round_numbers(infer.debug_data_list, 3)
+    f_out.write(json.dumps(res) + '\n')
+    f_out.flush()
 
-        f_out = open(args.output_fname, 'w')
-        for data_i, data in enumerate(tqdm(dataloader)):
-            question_id, video_frames, conversation, fps, video_duration = data
-            if question_id is None: continue
-            conv_template = "qwen_1_5"
-            original_question = [e['content'] for e in conversation if e['role'] == 'user'][0]
-            question = f"{DEFAULT_IMAGE_TOKEN}\n{original_question}"
-            conv = copy.deepcopy(conv_templates[conv_template])
-            conv.append_message(conv.roles[0], question)
-            conv.append_message(conv.roles[1], None)
-            prompt_question = conv.get_prompt()
-            if data_i < 5:
-                print(f'model input at example {data_i}: {prompt_question}')
-            input_ids = tokenizer_image_token(prompt_question, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(model.device)
-            image_sizes = [frame.size() for frame in video_frames]
-            image_tensor = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].half().to(model.device)
-            modalities = ["video"] * len(video_frames)
-            cont = model.generate(
-                input_ids,
-                images=[image_tensor],
-                image_sizes=image_sizes,
-                do_sample=False,
-                temperature=0,
-                max_new_tokens=512,
-                modalities=modalities,
-            )
-            text_outputs = tokenizer.batch_decode(cont, skip_special_tokens=True)
-            res = {'question_id': question_id, 'model_response': text_outputs, 'question': original_question, 'video_duration': video_duration}
-            f_out.write(json.dumps(res) + '\n')
-            if data_i % 10 == 0:
-                f_out.flush()
-        f_out.close()
+    

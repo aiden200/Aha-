@@ -188,6 +188,9 @@ class StreamMixIn(torch.utils.data.Dataset):
         else:
             frames = torch.tensor([])
 
+        for a in self.annos:
+            print(len(a["conversation"]))
+        exit(0)
         # 2. prepare texts
         if self.augmentation:
             conversation = self.augment(conversation)

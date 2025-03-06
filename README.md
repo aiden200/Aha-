@@ -105,7 +105,7 @@ bash ./scripts/train_on_tvsum.sh
 
 
 
-# Acknowledgment
+# Acknowledgments
 We are building off of these projects. Our codebase is built off of the MMDuet codebase:
 - [MMDuet](https://github.com/yellow-binary-tree/MMDuet) 
 - [LLaVA-NeXT](https://github.com/LLaVA-VL/LLaVA-NeXT) 
