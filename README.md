@@ -77,7 +77,13 @@ pip3 install torch==2.5.1 torchvision==0.20.1 torchaudio --index-url https://dow
 # Training
 
 ## Download pretrained MMDuet Model
-- Download our data annotation for training (MMDuetIT) and evaluation from [wangyueqian/MMDuetIT](https://huggingface.co/datasets/wangyueqian/MMDuetIT) and put them in `datasets` folder.
+- Download MMDuet checkpoints from HuggingFace: (https://huggingface.co/wangyueqian/MMDuet) and put the files under folder `./outputs/mmduet`
+```bash
+mkdir outputs
+cd outputs
+git clone https://huggingface.co/wangyueqian/MMDuet mmduet
+cd ..
+```
 
 
 ## Download the tvsum dataset
