@@ -21,15 +21,53 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-2. Install llava following the instructions in [https://github.com/LLaVA-VL/LLaVA-NeXT](https://github.com/LLaVA-VL/LLaVA-NeXT)
+
+2. Install torch compiled with cuda. Install them together using the instructions provided by [pytorch.org](https://pytorch.org).
+
+
+3. Install llava. If you run into any issues check the [official repository download instructions.](https://github.com/LLaVA-VL/LLaVA-NeXT)
 ```bash
 cd LLaVA_NeXT
 pip install -e ".[train]"
+cd ..
 ```
 
-3. Install flash-attention following the instructions in [https://github.com/Dao-AILab/flash-attention](https://github.com/Dao-AILab/flash-attention). If you have difficulties installing it, add `--attn_implementation sdpa` in every command to use the sdpa implementation of transformer attention for train or inference.
+4. Install flash-attention following the instructions in [https://github.com/Dao-AILab/flash-attention](https://github.com/Dao-AILab/flash-attention). If you have difficulties installing it, add `--attn_implementation sdpa` in every command to use the sdpa implementation of transformer attention for train or inference.
+```bash
+MAX_JOBS=4 pip install flash-attn --no-build-isolation --no-cache-dir 
+```
 
-4. Download MMDuet checkpoints from HuggingFace: [https://huggingface.co/wangyueqian/MMDuet](https://huggingface.co/wangyueqian/MMDuet) and put the files under folder `./outputs/mmduet`.
+5. Download MMDuet checkpoints from HuggingFace: [https://huggingface.co/wangyueqian/MMDuet](https://huggingface.co/wangyueqian/MMDuet) and put the files under folder `./outputs/mmduet`.
+
+```bash
+mkdir outputs
+cd outputs
+git clone https://huggingface.co/wangyueqian/MMDuet mmduet
+cd ..
+```
+
+
+## Common Problems
+
+*Note 1:* If you get a `bitsandbytes` error, try running:
+```bash
+pip uninstall bitsandbytes
+pip install bitsandbytes
+```
+*Note 2:* If you get a `Undefined symbol cpython-310-x86_64-linux-gnu.so: undefined symbol:` error, try running:
+```
+pip uninstall flash-attn
+pip install flash-attn --no-build-isolation --no-cache-dir
+```
+*Note 3:* If you get some kind of `c10 deprecation` error, your pytorch version might be too high. The authors used the version:
+- `Python==3.10`
+- `torch == 2.5.1`
+- `torchvision==0.20.1`
+- `cuda12.4`
+
+```bash
+pip3 install torch==2.5.1 torchvision==0.20.1 torchaudio --index-url https://download.pytorch.org/whl/cu124
+```
 
 # Inference
 ## Download Our model
@@ -43,7 +81,7 @@ pip install -e ".[train]"
 
 
 ## Download the tvsum dataset
-Follow the instructions from the official [tvsum](https://github.com/yalesong/tvsum?tab=readme-ov-file) repository
+Follow the instructions from the official [tvsum](https://github.com/yalesong/tvsum?tab=readme-ov-file) repository then move it to the datasets folder
 
 <!-- - Download the videos, and link each video folder to `datasets/${DATASET_NAME}/videos`. Here we list recommended video download links, while you can also download from other sources:
   - YouCook2: [https://opendatalab.com/OpenDataLab/YouCook2](https://opendatalab.com/OpenDataLab/YouCook2)
@@ -54,6 +92,10 @@ Follow the instructions from the official [tvsum](https://github.com/yalesong/tv
 - Download [paraphrase-en.gz](https://github.com/lichengunc/refer/raw/refs/heads/master/evaluation/meteor/data/paraphrase-en.gz) (59MB) which is used for dense video captioning evaluation. Put this file at `test/dvc/metrics/data/paraphrase-en.gz` -->
 
 
+## Run the training script
+```bash
+bash ./scripts/train_on_tvsum.sh
+```
 
 
 

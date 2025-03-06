@@ -91,7 +91,6 @@ with gr.Blocks(title="MMDuet", css=css) as demo:
                 avatar_images=('demo/assets/user_avatar.png', 'demo/assets/assistant_avatar.png'),
                 render=False
             ),
-            retry_btn=None, undo_btn=None,
             examples=[],
         )
 

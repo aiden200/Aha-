@@ -6,6 +6,7 @@ from .data_collator import get_data_collator
 from .dvc import DenseVideoCaptioningStreamDataset
 from .magqa import MAGQAStreamDataset
 from .grounding import GroundingStreamDataset
+from .intuition_grounding import HumanIntuitionDataset
 
 __all__ = [
     'build_concat_train_dataset',

@@ -29,6 +29,7 @@ def train():
     args = parse_args('train')
     rank0_print(args)
     model, tokenizer = build_model_and_tokenizer(is_training=True, **asdict(args))
+    
     if 'llava' in args.llm_pretrained:
         image_processor = model.get_vision_tower().image_processor
     else:
@@ -37,13 +38,23 @@ def train():
     for name, param in model.named_parameters():
         rank0_print(name, param.shape, param.dtype, param.requires_grad)
 
+    tokenizer = None
+
+
+    # We load the datasets. In our case, its only tvsum. No need to change anything
     train_dataset_config = json.load(open(args.dataset_config))
+
+    # Need to correct this
     train_dataset = build_concat_train_dataset_from_config(
         tokenizer=tokenizer, config=train_dataset_config
     )
+
+    # I thiqnk the model is Quen
     data_collator = get_data_collator(tokenizer=tokenizer, image_processor=image_processor, model_config=model.config, **asdict(args))
 
     args.gradient_checkpointing_kwargs = {'use_reentrant': False}
+
+    # We're good to go here
     trainer = TrainerWithLossErrorCatch(
         model=model, tokenizer=tokenizer,
         args=args,

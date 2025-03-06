@@ -1,4 +1,4 @@
-import torch, os, json, tqdm, math, random, cv2
+import torch, os, json, tqdm, math, random, cv2, csv
 import numpy as np
 from transformers import PreTrainedTokenizer
 import torch.distributed as dist
@@ -17,6 +17,12 @@ def get_all_files(directory):
     return relative_file_list
 
 
+def parse_length_to_seconds(length: str) -> int:
+    minutes, seconds = map(int, length.split(':'))
+    total_seconds = minutes * 60 + seconds
+    return total_seconds
+
+
 def get_video_duration_and_fps(args):
     file, video_root = args
     path = os.path.join(video_root, file)
@@ -29,7 +35,7 @@ def get_video_duration_and_fps(args):
 
 class StreamMixIn(torch.utils.data.Dataset):
     def __init__(self,
-                 video_root: str = None, anno_file: str = None, metadata_path: str = None, frame_fps: float = 2, frame_size: int = 384,
+                 video_root: str = None, anno_file: str = None, metadata_path: str = None, caption_file: str = None, frame_fps: float = 2, frame_size: int = 384,
                  system_prompt: str = None, augmentation: bool = False,
                  max_num_frames: int = 128, tokenizer: PreTrainedTokenizer = None, skip_video=False, **kwargs):
         super().__init__()
@@ -45,6 +51,11 @@ class StreamMixIn(torch.utils.data.Dataset):
         self.skip_video = skip_video     # used in text-only scenarios
         self.metadata = self.get_metadata()
         self.annos = self.get_annos()
+        if caption_file:
+            self.captions = self.get_captions(caption_file)
+        else:
+            self.captions = None
+
 
     def __len__(self):
         return len(self.annos)
@@ -53,6 +64,23 @@ class StreamMixIn(torch.utils.data.Dataset):
         anno_path = os.path.join(self.anno_file)
         assert os.path.exists(anno_path)
         return json.load(open(anno_path))
+
+
+    def get_captions(self, caption_file) -> dict:
+        # load tsv file
+        caption_path = os.path.join(caption_file)
+        assert os.path.exists(caption_path)
+        captions = {}
+        with open(caption_path, 'r', newline='') as file:
+            reader = csv.reader(file, delimiter='\t')
+            next(reader)  # Skip the header row
+            for row in reader:
+                vid_category_code, vid_id, caption, url, length = row
+                captions[vid_id] = {
+                    "query": caption,
+                    "length": parse_length_to_seconds(length)
+                }
+        return captions
 
     def max_frames_clip(self, conversation: list[dict], load_ranges: dict[str, range], max_num_frames: int):
         cum_num_frames = 0

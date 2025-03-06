@@ -102,7 +102,7 @@ def build_live(
     if is_training:
         if lora_pretrained:
             print(f'loading lora from checkpoint: {lora_pretrained}')
-            model = PeftModel.from_pretrained(model, lora_pretrained, is_trainable=False)
+            model = PeftModel.from_pretrained(model, lora_pretrained, is_trainable=True) # we are further fine-tuning
         else:
             lora_config = LoraConfig(
                 r=lora_r,

@@ -20,7 +20,7 @@ from .datasets import FastAndAccurateStreamingVideoQADataset
 class LiveInferForBenchmark:
     def __init__(self, args) -> None:
         assert not (args.bf16 and args.fp16), "only one of --bf16 true and --fp16 true can be set"
-        self.torch_dtype = torch.bfloat16 if args.bf16 else torch.float16 if args.fp16 else torch.float32
+        self.torch_dtype = torch.bfloat16 if args.bf16 else torch.float16 #if args.fp16 else torch.float32
         self.model, self.tokenizer = build_model_and_tokenizer(is_training=False, set_vision_inside=True, torch_dtype=self.torch_dtype, **asdict(args))
         self.model.eval()
         if 'llava' in args.llm_pretrained:
@@ -77,94 +77,11 @@ class LiveInferForBenchmark:
 
     # DEPRECATED
     def _call_for_response(self, video_time, query):
-        if query is not None:
-            # encode the user query
-            self.last_ids = self.tokenizcer.apply_chat_template([{'role': 'user', 'content': query}], add_stream_query_prompt=self.last_role == 'stream', add_stream_prompt=True, return_tensors='pt').to('cuda')
-            inputs_embeds = self.model.get_input_embeddings()(self.last_ids)
-            outputs = self.model(inputs_embeds=inputs_embeds, past_key_values=self.past_key_values, use_cache=True, return_dict=True)
-            self.past_key_values = outputs.past_key_values
-            self.last_ids = outputs.logits[:, -1:].argmax(dim=-1)
-            self.last_role = 'user'
-            return query, None
-
-        self.last_ids = self._added_stream_generation_ids
-        inputs_embeds = self.model.get_input_embeddings()(self.last_ids)
-        output_ids, past_key_values, self.generated_token_ids = fast_greedy_generate(
-            model=self.model, inputs_embeds=inputs_embeds, past_key_values=self.past_key_values, eos_token_id=self.eos_token_id, inplace_output_ids=self.inplace_output_ids,
-            repetition_penalty=self.repetition_penalty, generated_token_ids=self.generated_token_ids
-        )
-
-        if not self.remove_assistant_turns:
-            self.past_key_values = past_key_values
-            self.last_ids = output_ids[:, -1:]
-        else:
-            self.last_ids = torch.tensor([[]], device='cuda', dtype=torch.long)
-
-        response = self.tokenizer.decode(output_ids[0], skip_special_tokens=True, clean_up_tokenization_spaces=True)
-        self.num_frames_no_reply = 0
-        self.last_role = 'assistant'
-        return query, response
+        raise ValueError("Depreicated, please look at original MMDuet repository https://github.com/yellow-binary-tree/MMDuet/blob/main/test/inference.py")
 
     # DEPRECATED
     def _call_for_streaming(self):
-        while self.frame_embeds_queue:
-            # 1. if query is before next frame, encode the user query first
-            if self.query_queue and self.frame_embeds_queue[0][0] > self.query_queue[0][0]:
-                video_time, query = self.query_queue.popleft()
-                return video_time, query
-            video_time, frame_embeds = self.frame_embeds_queue.popleft()
-            if not self.past_key_values:
-                self.last_ids = self._start_ids
-            elif self.last_role == 'assistant' and not self.remove_assistant_turns:
-                self.last_ids = torch.cat([self.last_ids, self._added_stream_prompt_ids], dim=1)
-            else:       # last_role is stream, now we just input another frame
-                self.last_ids = torch.tensor([[]], device='cuda', dtype=torch.long)
-            inputs_embeds = torch.cat([
-                self.model.get_input_embeddings()(self.last_ids).view(1, -1, self.hidden_size),
-                frame_embeds.view(1, -1, self.hidden_size).to(self.last_ids.device),
-            ], dim=1)
-            outputs = self.model(inputs_embeds=inputs_embeds, use_cache=True, past_key_values=self.past_key_values, return_dict=True)
-            self.past_key_values = outputs.past_key_values
-
-            self.frame_idx += 1
-            self.num_frames_no_reply += 1
-
-            informative_score = outputs.informative_logits[0,-1].softmax(dim=-1)
-            relevance_score = outputs.relevance_logits[0,-1].softmax(dim=-1)
-
-            # 3. if no user input, check what informative_heads returns
-            video_heads_data = {'video_time': video_time, 'informative_score': informative_score.tolist(), 'relevance_score': relevance_score.tolist()}
-            self.debug_data_list.append(video_heads_data)
-
-            if self.stream_end_score_sum_threshold is not None:
-                stream_end_prob_threshold = None
-            elif self.stream_end_prob_threshold is not None:
-                stream_end_prob_threshold = self.stream_end_prob_threshold
-            else:
-                if len(self.stream_end_prob_list) < self.first_n_frames_no_generate:
-                    # set the threshold to a very large number, to ensure the informative_head can not produce a score larger than this
-                    stream_end_prob_threshold = 1
-                else:
-                    # set the threshold as mean + z * std
-                    stream_end_prob_threshold = np.mean(self.stream_end_prob_list) + self.threshold_z * np.std(self.stream_end_prob_list)
-
-            stream_end_score = 0.
-            for score_name in ['informative_score', 'relevance_score']:
-                if score_name in self.score_heads:
-                    stream_end_score += video_heads_data[score_name][1]
-
-            self.stream_end_prob_list.append(stream_end_score)
-            self.stream_end_score_sum += stream_end_score
-
-            if isinstance(self.running_list_length, int) and self.running_list_length > 0:
-                self.stream_end_prob_list = self.stream_end_prob_list[-self.running_list_length:]
-            self.last_role = 'stream'
-            if stream_end_prob_threshold is not None and stream_end_score > stream_end_prob_threshold:
-                return video_time, None
-            if stream_end_prob_threshold is None and self.stream_end_score_sum > self.stream_end_score_sum_threshold:
-                self.stream_end_score_sum = 0
-                return video_time, None
-        return None, None
+        raise ValueError("Depreicated, please look at original MMDuet repository https://github.com/yellow-binary-tree/MMDuet/blob/main/test/inference.py")
 
     def reset(self, ):
         self.query_queue = collections.deque()

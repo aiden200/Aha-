@@ -1,0 +1,10 @@
+[
+    {
+        "dataset_cls": "HumanIntuitionDataset",
+        "video_root": "datasets/tvsum/ydata-tvsum50-v1_1/video",
+        "anno_file": "datasets/tvsum/ydata-tvsum50-v1_1/data/ydata-tvsum50-anno.tsv",
+        "caption_file": "datasets/tvsum/ydata-tvsum50-v1_1/data/ydata-tvsum50-info.tsv",
+        "metadata_path": "datasets/tvsum/videos_metadata.json"
+    }
+]
+
