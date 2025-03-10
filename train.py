@@ -7,17 +7,25 @@ from data import (
     build_concat_train_dataset_from_config, get_data_collator
 )
 from transformers import Trainer
+import wandb
+import yaml
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
 class TrainerWithLossErrorCatch(Trainer):
     def training_step(self, model, inputs):
-        try:
-            loss = super().training_step(model, inputs)
-            return loss
-        except Exception as e:
-            print(f"Error during training step: {e}, use a dummy loss = 0.0")
-            return torch.tensor(0., device=self.args.device,
-                                dtype=torch.float16 if self.args.fp16 else torch.bfloat16 if self.args.bf16 else torch.float32)  # dummy loss
+        # try:
+        loss = super().training_step(model, inputs)
+        # if wandb and torch.distributed.get_rank() == 0:
+        #     wandb.log({"loss": loss})
+        return loss
+        # We don't want to use this for now
+        # except Exception as e:
+        #     print(f"Error during training step: {e}, use a dummy loss = 0.0")
+        #     return torch.tensor(0., device=self.args.device,
+        #                         dtype=torch.float16 if self.args.fp16 else torch.bfloat16 if self.args.bf16 else torch.float32)  # dummy loss
 
 
 def rank0_print(*args):
@@ -26,7 +34,23 @@ def rank0_print(*args):
 
 
 def train():
+
+    # print(torch.distributed.is_initialized())
+    # exit(0)
+
+    with open("configs/wandb/wandb.config", 'r') as f:
+        wandb_config = yaml.safe_load(f)
+    
+    
+    
     args = parse_args('train')
+    if torch.distributed.get_rank() == 0:
+        run = wandb.init(
+            entity=wandb_config['wandb']['entity'],
+            project=wandb_config['wandb']['project'],
+            config=wandb_config['wandb']['config']
+        )
+    # print(torch.distributed.is_initialized())
     rank0_print(args)
     model, tokenizer = build_model_and_tokenizer(is_training=True, **asdict(args))
     
@@ -37,8 +61,6 @@ def train():
 
     for name, param in model.named_parameters():
         rank0_print(name, param.shape, param.dtype, param.requires_grad)
-
-    tokenizer = None
 
 
     # We load the datasets. In our case, its only tvsum. No need to change anything
@@ -59,12 +81,13 @@ def train():
         model=model, tokenizer=tokenizer,
         args=args,
         train_dataset=train_dataset,
-        data_collator=data_collator,
+        data_collator=data_collator
     )
 
     with torch.cuda.amp.autocast():
         trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
     trainer.save_model()
+    run.finish()
 
 if __name__ == "__main__":
     train()

@@ -85,6 +85,10 @@ git clone https://huggingface.co/wangyueqian/MMDuet mmduet
 cd ..
 ```
 
+## Set Environment Variables
+Make a `.env` file, and store your `WANDB_API_KEY` in it. Change the variables in `configs/wandb/wandb.config` so you can monitor your model while training.
+
+
 
 ## Download the tvsum dataset
 Follow the instructions from the official [tvsum](https://github.com/yalesong/tvsum?tab=readme-ov-file) repository then move it to the datasets folder
@@ -103,7 +107,8 @@ Follow the instructions from the official [tvsum](https://github.com/yalesong/tv
 bash ./scripts/train_on_tvsum.sh
 ```
 
-
+## Distributed Training
+This model is very big, trained on 8 V100 GPUs, and you will probably need to utilize distributed training. [I've included instructions on how to train on the cloud, using Paperspace.](instructions/distributed_instructions.md) 
 
 # Acknowledgments
 We are building off of these projects. Our codebase is built off of the MMDuet codebase:
