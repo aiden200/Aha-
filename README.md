@@ -1,4 +1,4 @@
-# Aha! – A Model for Human-Like Reflection in Video Understanding
+# Aha! – When Has a Model Seen Enough? Adaptive Video Segmentation and Highlight Detection
 
 <!-- Official implementation of paper *VideoLLM Knows When to Speak: Enhancing Time-Sensitive Video Comprehension with Video-Text Duet Interaction Format* -->
 
