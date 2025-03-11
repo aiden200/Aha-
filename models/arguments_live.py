@@ -40,9 +40,11 @@ class LiveTrainingArguments(TrainingArguments):
     llm_pretrained: str = 'lmms-lab/llava-onevision-qwen2-7b-ov'
     vision_pretrained: str = 'google/siglip-large-patch16-384'
     lora_pretrained: str = None
+    # LoRA parameters to tune over the frozen Qwen model
     lora_modules: str = "model\.layers.*(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$"
     lora_r: int = 16
     lora_alpha: int = 32
+    # These are fully trainable
     finetune_modules: list[str] = field(default_factory=lambda: ['connector', 'mm_projector', 'response_head', 'related_head'])
     frame_fps: float = 2
     frame_token_cls: bool = False
@@ -68,8 +70,8 @@ class LiveTestArguments(LiveTrainingArguments):
     )
     live_version: str = 'test'
     is_online_model: bool = True
-    grounding_mode: bool = False        # if set, only output probs, never generate reply
-    input_dir: str = 'datasets/shot2story/videos/'
+    grounding_mode: bool = True        # if set, only output probs, never generate reply
+    input_dir: str = 'dataset/tvsum/ydata-tvsum50-v1_1/video'
     test_fname: str = ''
     output_fname: str = ''
     repetition_penalty: float = None

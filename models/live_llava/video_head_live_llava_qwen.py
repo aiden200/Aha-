@@ -184,6 +184,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
                 video_labels[:, 0] = 0      # make sure video_loss is calculated for every example, or the deepspeed training process will hang
             # video_loss = loss_fct(video_logits.flatten(0, 1), video_labels.flatten())
             video_loss = loss_fct(video_logits.flatten(0, 1), video_labels.flatten().float()) # for MSE
+            #TODO MSE might not be applicable for information labels AND relevance labels
             if not return_dict:
                 outputs = outputs + (video_loss,)
         else:

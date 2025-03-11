@@ -73,6 +73,11 @@ pip3 install torch==2.5.1 torchvision==0.20.1 torchaudio --index-url https://dow
 ## Download Our model
 
 
+# Evaluation
+
+## Download the tvsum dataset
+Follow the instructions from the official [tvsum](https://github.com/yalesong/tvsum?tab=readme-ov-file) repository then move it to the datasets folder
+
 
 # Training
 
@@ -88,10 +93,11 @@ cd ..
 ## Set Environment Variables
 Make a `.env` file, and store your `WANDB_API_KEY` in it. Change the variables in `configs/wandb/wandb.config` so you can monitor your model while training.
 
+## Download the Mr.HiSum Dataset following the [official instructions](https://github.com/MRHiSum/MR.HiSum).
 
 
-## Download the tvsum dataset
-Follow the instructions from the official [tvsum](https://github.com/yalesong/tvsum?tab=readme-ov-file) repository then move it to the datasets folder
+
+
 
 <!-- - Download the videos, and link each video folder to `datasets/${DATASET_NAME}/videos`. Here we list recommended video download links, while you can also download from other sources:
   - YouCook2: [https://opendatalab.com/OpenDataLab/YouCook2](https://opendatalab.com/OpenDataLab/YouCook2)
