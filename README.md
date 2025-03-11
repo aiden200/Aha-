@@ -4,9 +4,16 @@
 
 # Introduction
 
-Aha! is a video-language model designed to understand when there is enough information in a video to pause, reflect, and analyze, capturing human-like moments of realization, or "Aha!" moments.
+Aha! is a video-language model designed to recognize when enough information has been observed in a video, triggering reflection and segmentation at the right moments, just like human intuition during "Aha!" moments.
 
-Most video-language models process videos continuously or respond at fixed intervals, missing the nuances of human intuition when deciding the right moment to stop and reflect. Inspired by how humans naturally recognize key moments that carry the most meaning, Aha! learns to predict these moments in a way that aligns with human perception.
+Unlike traditional video-language models that process continuously or respond at fixed intervals, Aha! dynamically determines when to pause, analyze, and extract key moments based on contextual importance.
+
+By fine-tuning Qwen-7B with an importance-aware segmentation mechanism and integrating uncertainty-based decision-making, Aha! intelligently:
+- Segments video streams when enough information is available
+- Ranks and extracts key moments using task-aware importance scoring
+- Generates highlight reels with structured summarization techniques
+
+This approach enables more efficient video understanding, making Aha! applicable to autonomous agents, surveillance, video summarization, and decision-support systems.
 
 
 # Installation
