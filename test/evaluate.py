@@ -428,6 +428,76 @@ if __name__ == '__main__':
             print(f'score: {mean_iou:.2f}/{recall_0_3:.2f}/{recall_0_5:.2f}/{recall_0_7:.2f}')
 
 
+    elif args.func == 'tvsum': #TODO this is the one I want to modify
+        with open(args.pred_file, "r") as f:
+            pred_examples = json.load(f)
+        
+        pred_examples = [json.loads(line) for line in open(args.pred_file)]
+        gold_examples = json.load(open(args.gold_file))
+        if 'answer' in gold_examples[0] and 'saliency_scores' in gold_examples[0]['answer']:
+            # this is a qvh dataset, convert it to charades format
+            gold_examples = [qvh_to_charades_format(e) for e in gold_examples]
+        gold_examples = {e['question_id']: e for e in gold_examples}
+        final_results = list()
+
+        if args.is_online_model:
+            for smooth_window_size in range(0, 15):
+                print("using smooth window size", smooth_window_size)
+                iou_scores_list_dict = {threshold: list() for threshold in np.arange(0.30, 0.71, 0.02)}
+                for pred_example in pred_examples:
+                    gold_example = gold_examples[pred_example['question_id']]
+                    video_times, pred_scores = list(), list()
+                    for e in pred_example['debug_data']:
+                        video_times.append(e['video_time'])
+                        if 'relevance_score' in e:
+                            pred_scores.append(e['relevance_score'][1])
+                        else:
+                            pred_scores.append(0)
+
+                    pred_scores = smooth_pred_list(pred_scores, smooth_window_size)
+                    pred_scores = normalize_pred_list(pred_scores)
+                    gold_scores = [is_time_in_span(time, gold_example['timestamps']) for time in video_times]
+                    for threshold in iou_scores_list_dict:
+                        iou = calculate_iou(pred_scores, gold_scores, threshold, debug_data=pred_example['question_id'])
+                        iou_scores_list_dict[threshold].append(iou)
+
+                for threshold in iou_scores_list_dict:
+                    mean_iou = np.mean(iou_scores_list_dict[threshold]) * 100
+                    recall_0_3 = np.mean([e >= 0.3 for e in iou_scores_list_dict[threshold]]) * 100
+                    recall_0_5 = np.mean([e >= 0.5 for e in iou_scores_list_dict[threshold]]) * 100
+                    recall_0_7 = np.mean([e >= 0.7 for e in iou_scores_list_dict[threshold]]) * 100
+                    print(f'score threshold = {threshold:.2f}: {mean_iou:.2f}/{recall_0_3:.2f}/{recall_0_5:.2f}/{recall_0_7:.2f}')
+                    final_results.append({'smooth_window_size': smooth_window_size, 'threshold': threshold, 'scores': [mean_iou, recall_0_3, recall_0_5, recall_0_7]})
+
+                best_among_all_thres = [max([iou_list[i] for iou_list in iou_scores_list_dict.values()]) for i in range(len(pred_examples))]
+                mean_iou = np.mean(best_among_all_thres) * 100
+                recall_0_3 = np.mean([e >= 0.3 for e in best_among_all_thres]) * 100
+                recall_0_5 = np.mean([e >= 0.5 for e in best_among_all_thres]) * 100
+                recall_0_7 = np.mean([e >= 0.7 for e in best_among_all_thres]) * 100
+                print(f'best among all thresholds: {mean_iou:.2f}/{recall_0_3:.2f}/{recall_0_5:.2f}/{recall_0_7:.2f}')
+            if args.output_file:
+                json.dump(final_results, open(args.output_file, 'w'), indent=4)
+
+        else:
+            iou_scores = list()
+            for example in pred_examples:
+                # this is llava baseline, extract numbers from its results
+                gold_example = gold_examples[example['question_id']]
+                sec_matches = re.findall(r"\d+\.?\d*", example['model_response'][0])
+                if not len(sec_matches) == 2: continue
+                start_sec, end_sec = float(sec_matches[0]), float(sec_matches[1])
+                if 'from' in example['model_response'][0].lower() and 'to' in example['model_response'][0].lower():
+                    # this is a vtimellm formatt output
+                    video_length = example['video_duration']
+                    start_sec, end_sec = start_sec / 100 * video_length, end_sec / 100 * video_length
+                iou_scores.append(calculate_iou_span((start_sec, end_sec), gold_example['timestamps'][0]))
+
+            mean_iou = np.mean(iou_scores) * 100
+            recall_0_3 = np.mean([e >= 0.3 for e in iou_scores]) * 100
+            recall_0_5 = np.mean([e >= 0.5 for e in iou_scores]) * 100
+            recall_0_7 = np.mean([e >= 0.7 for e in iou_scores]) * 100
+            print(f'score: {mean_iou:.2f}/{recall_0_3:.2f}/{recall_0_5:.2f}/{recall_0_7:.2f}')
+
     elif args.func == 'dense_captioning':
         pred_examples = [json.loads(line) for line in open(args.pred_file)]
         gold_examples = json.load(open(args.gold_file))

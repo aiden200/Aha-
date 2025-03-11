@@ -86,7 +86,13 @@ class LiveTestArguments(LiveTrainingArguments):
     time_instruction_format: str = None
     stream_end_score_sum_threshold: float = None
     remove_assistant_turns: bool = False        # if True, do not add assistant-generated content to input context (kv_cache)
-    score_heads: str = 'informative_score'       # a list of score names, seperated with comma. e.g.: `relevance_score,informative_score`
+    score_heads: str = 'relevance_score,informative_score'       # a list of score names, seperated with comma. e.g.: `relevance_score,informative_score`
+    skip_eval: bool = False # skips evaluation
+    test_dataset: str = "tvsum" # the type of dataset 
+    caption_metadata_file: str = "datasets/tvsum/ydata-tvsum50-v1_1/data/ydata-tvsum50-info.tsv" # the caption file if applicable
+    video_metadata_file: str = 'datasets/tvsum/videos_metadata.json' # the video metadata file if applicable
+
+
 
 
 def get_args_class(args_version: str):

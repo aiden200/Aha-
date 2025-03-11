@@ -1,4 +1,4 @@
-import collections, math, json, copy, random, os
+import collections, math, json, copy, random, os, csv, sys
 import cv2
 from dataclasses import asdict
 from tqdm import tqdm
@@ -332,30 +332,50 @@ if __name__ == '__main__':
     args = parse_args('test')
     print(args)
     infer = LiveInferForBenchmark(args)
-    vide_metadata_file = None
-    with open(vide_metadata_file, 'r') as f:
-        data = json.load(f)
+    
+    if args.skip_eval:
+        # We don't want to reevaluate
+        sys.exit() 
+    
+    if args.test_dataset == "tvsum":
+        with open(args.video_metadata_file, 'r') as f:
+            data = json.load(f)
+        
+        captions = {}
+        with open(args.caption_metadata_file, 'r', newline='') as file:
+            reader = csv.reader(file, delimiter='\t')
+            next(reader)  # Skip the header row
+            for row in reader:
+                vid_category_code, vid_id, caption, url, length = row
+                captions[vid_id] = {
+                    "query": caption,
+                }
 
-    f_out = open(args.output_fname, 'w')
-    video_uuid = data.get('video_uuid')
-    video_path = data.get('video_path')
+        f_out = open(args.output_fname, 'w')
+        results = []
 
-    video_frames, fps, video_duration = load_video_for_testing(video_path)    
+        for video_name_with_extension in tqdm(data):
+            video_uuid = video_name_with_extension[:-4]
+            video_path = os.path.join(args.input_dir, video_name_with_extension)
+            query = random.choice(query_templates) % captions[video_uuid]["query"]
 
-    conversation = list()
-    conversation.append({"role": "system", "content": system_prompt})
-    conversation.append({'role': 'user', 'content': random.choice(query_templates) % data['query']})
+            video_frames, fps, video_duration = load_video_for_testing(video_path)    
+
+            conversation = list()
+            conversation.append({"role": "system", "content": system_prompt})
+            conversation.append({'role': 'user', 'content': query, 'time': 0})
 
 
-    infer.reset()
-    print(f"num frames and fps for {video_uuid}: {len(video_frames)}, {fps}")
-    infer.set_fps(fps=fps)
-    infer.input_video_stream(video_frames)
-    infer.input_query_stream(conversation)
-    model_response_list = infer.inference()
-    res = {'video_uuid': video_uuid, 'model_response_list': model_response_list, 'video_duration': video_duration}
-    res['debug_data'] = round_numbers(infer.debug_data_list, 3)
-    f_out.write(json.dumps(res) + '\n')
-    f_out.flush()
+            infer.reset()
+            print(f"num frames and fps for {video_uuid}: {len(video_frames)}, {fps}")
+            infer.set_fps(fps=fps)
+            infer.input_video_stream(video_frames)
+            infer.input_query_stream(conversation)
+            model_response_list = infer.inference()
+            res = {'video_uuid': video_uuid, 'model_response_list': model_response_list, 'video_duration': video_duration}
+            res['debug_data'] = round_numbers(infer.debug_data_list, 3)
+            results.append(res)
+        f_out.write(json.dumps(results, indent=4))
+        f_out.flush()
 
     
