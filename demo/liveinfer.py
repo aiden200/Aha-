@@ -74,7 +74,7 @@ class LiveInferForDemo(LiveInferForBenchmark):
         # 1. the check query step is skipped, as all user input is from the demo page
 
         # 2. input a frame, and update the scores list
-        video_scores = self._encode_frame()
+        video_scores, uncertainty_scores = self._encode_frame()
         ret = dict(frame_idx=self.frame_idx, time=round(self.video_time, 1), **video_scores)  # the frame_idx here is after self.frame_idx += 1
 
         # 3. check the scores, if need to generate a response

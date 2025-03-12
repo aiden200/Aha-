@@ -56,6 +56,7 @@ class VideoHeadCausalLMOutputWithPast(CausalLMOutputWithPast):
     video_loss: Optional[torch.FloatTensor] = None
     informative_logits: Optional[torch.FloatTensor] = None
     relevance_logits: Optional[torch.FloatTensor] = None
+    uncertainty: Optional[torch.FloatTensor] = None
 
 class VideoHeadLlavaQwenModel(LlavaMetaModel, Qwen2Model):
     config_class = VideoHeadLiveLlavaQwenConfig
@@ -76,13 +77,19 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.informative_head = nn.Linear(config.hidden_size, 2, bias=False)
         self.relevance_head = nn.Linear(config.hidden_size, 2, bias=False)
+        self.uncertainty_head = nn.Linear(config.hidden_size, 1, bias=False) # we predict the uncertainty of information
 
         # Initialize weights and apply final processing
         self.post_init()
         self.vision_encoder = self.get_vision_tower()
         self.lm_loss_weight = 1
         self.video_loss_weight = 1
-        print(f"using lm_loss_weight: {self.lm_loss_weight}, video_loss_weight: {self.video_loss_weight} for training")
+        self.info_loss_weight = 1
+        self.ref_loss_weight = 0.5
+        self.uncertainty_loss_weight = 0.1
+        print(f"using lm_loss_weight: {self.lm_loss_weight}, video_loss_weight: {self.video_loss_weight}, \
+              info_loss_weight: {self.info_loss_weight}, ref_loss_weight: {self.ref_loss_weight}, and \
+                uncertainty_loss_weight: {self.uncertainty_loss_weight} for training")
 
     def get_model(self):
         return self.model
@@ -153,42 +160,81 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         hidden_states = outputs[0]
         outputs = outputs[1:]
         logits = self.lm_head(hidden_states).float()
+
+
         if self.config.video_head_stop_grad:
             hidden_states_no_grad = hidden_states.detach()
         else:
             hidden_states_no_grad = hidden_states
+        
         informative_logits = self.informative_head(hidden_states_no_grad).float()
         relevance_logits = self.relevance_head(hidden_states_no_grad).float()
+        log_variance = self.uncertainty_head(hidden_states_no_grad).float()
+        variance = torch.exp(log_variance)
 
         # NOTE: all labels used here are already shifted in data collator
-        # loss_fct = CrossEntropyLoss()
-        loss_fct = MSELoss()
+        ce_loss_fct = CrossEntropyLoss()
+        mse_loss_fct = MSELoss()
         loss = 0.
 
         if labels is not None:
             if not(labels != -100).any():
                 labels[:, 0] = input_ids[:, 1]      # make sure lm_loss is calculated for every example, or the deepspeed training process will hang
-            # lm_loss = loss_fct(logits.flatten(0, 1), labels.flatten())
-            lm_loss = loss_fct(logits.flatten(0, 1), labels.flatten().float()) # for MSE
+            lm_loss = ce_loss_fct(logits.flatten(0, 1), labels.flatten())
+            # lm_loss = loss_fct(logits.flatten(0, 1), labels.flatten().float()) # for MSE
             if not return_dict:
                 outputs = (logits,) + outputs + (loss,)
         else:
             lm_loss = 0.
+        
+
+        info_loss = 0
+        ref_loss = 0
+        uncertainty_loss = 0
+
+        # Informative head: CE loss for classification 
+        if informative_labels is not None:
+            if not (informative_labels != -100).any():
+                informative_labels[:, 0] = 0  # Ensure valid target for at least one example
+            info_loss = ce_loss_fct(
+                informative_logits.view(-1, informative_logits.size(-1)),
+                informative_labels.view(-1)
+            )
+
+        # Relevance head: MSE + uncertainty (NLL) loss
+        if relevance_labels is not None:
+            if not (relevance_labels != -100).any():
+                relevance_labels[:, 0] = 0 
+            mse_loss_fct = MSELoss()
+            ref_loss = mse_loss_fct(
+                relevance_logits.view(-1),
+                relevance_labels.view(-1).float()
+            )
+            # NLL loss using uncertainty; note: this is applied only on the relevance head
+            nll_loss = ((relevance_labels.view(-1).float() - relevance_logits.view(-1)) ** 2) / (2 * variance.view(-1))
+            nll_loss += 0.5 * log_variance.view(-1)
+            uncertainty_loss = nll_loss.mean()
 
         # merge the 2 labels together, so this loss must be calculated as all training examples contains either informative_label or relevance_label.
         # otherwise the deepspeed training process will hang
-        if informative_labels is not None and relevance_labels is not None:
-            video_labels = torch.cat([informative_labels, relevance_labels], dim=0)
-            video_logits = torch.cat([informative_logits, relevance_logits], dim=0)
-            if not (video_labels != -100).any():
-                video_labels[:, 0] = 0      # make sure video_loss is calculated for every example, or the deepspeed training process will hang
-            # video_loss = loss_fct(video_logits.flatten(0, 1), video_labels.flatten())
-            video_loss = loss_fct(video_logits.flatten(0, 1), video_labels.flatten().float()) # for MSE
-            #TODO MSE might not be applicable for information labels AND relevance labels
-            if not return_dict:
-                outputs = outputs + (video_loss,)
-        else:
-            video_loss = 0.
+        # if informative_labels is not None and relevance_labels is not None:
+        #     video_labels = torch.cat([informative_labels, relevance_labels], dim=0)
+        #     video_logits = torch.cat([informative_logits, relevance_logits], dim=0)
+        #     if not (video_labels != -100).any():
+        #         video_labels[:, 0] = 0      # make sure video_loss is calculated for every example, or the deepspeed training process will hang
+        #     # video_loss = loss_fct(video_logits.flatten(0, 1), video_labels.flatten())
+        #     video_loss = loss_fct(video_logits.flatten(0, 1), video_labels.flatten().float()) # for MSE
+        #     #TODO MSE might not be applicable for information labels AND relevance labels
+        #     if not return_dict:
+        #         outputs = outputs + (video_loss,)
+
+        #     # This will replace 
+        #     nll_loss = ((video_labels - video_logits) ** 2) / (2 * variance) + 0.5 * log_variance
+        #     video_loss = nll_loss.mean()
+        # else:
+        #     video_loss = 0.
+
+        video_loss = self.info_loss_weight * info_loss + self.ref_loss_weight * ref_loss + self.uncertainty_loss_weight * uncertainty_loss
 
         loss = lm_loss * self.lm_loss_weight + video_loss * self.video_loss_weight
 
@@ -206,6 +252,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             video_loss=video_loss,
             informative_logits=informative_logits,
             relevance_logits=relevance_logits,
+            uncertainty=log_variance # uncertainty
         )
 
     def generate_after_embed(self, input_ids, frames, **kwargs):

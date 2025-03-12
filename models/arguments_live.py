@@ -91,7 +91,8 @@ class LiveTestArguments(LiveTrainingArguments):
     test_dataset: str = "tvsum" # the type of dataset 
     caption_metadata_file: str = "datasets/tvsum/ydata-tvsum50-v1_1/data/ydata-tvsum50-info.tsv" # the caption file if applicable
     video_metadata_file: str = 'datasets/tvsum/videos_metadata.json' # the video metadata file if applicable
-
+    uncertainty_wait_threshold: float = 0.0 # based on log variance, or 1.0 if using variance
+    max_wait_frames: int = 3 # maximum frames to wait before forcing a response, no matter how high uncertainty is
 
 
 

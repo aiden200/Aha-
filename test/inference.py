@@ -38,6 +38,10 @@ class LiveInferForBenchmark:
         self.frame_num_tokens = self.model.config.frame_num_tokens
         self.frame_v_placeholder = self.model.config.v_placeholder * self.frame_num_tokens
 
+        self.uncertainty_wait_threshold = args.uncertainty_wait_threshold
+        self.max_wait_frames = args.max_wait_frames
+        self.uncertainty_lock = 0
+
         # generation
         self.system_prompt = args.system_prompt
         self.inplace_output_ids = torch.zeros(1, 200, device='cuda', dtype=torch.long)
@@ -160,8 +164,9 @@ class LiveInferForBenchmark:
         self.num_frames_no_reply += 1
         informative_score = outputs.informative_logits[0,-1].softmax(dim=-1)[1].item()
         relevance_score = outputs.relevance_logits[0,-1].softmax(dim=-1)[1].item()
+        uncertainty_score = torch.exp(outputs.uncertainty[0, -1]).item()
         self.last_role = 'stream'
-        return {"informative_score": informative_score, "relevance_score": relevance_score}
+        return {"informative_score": informative_score, "relevance_score": relevance_score}, uncertainty_score
 
     def _encode_query(self):
         query_time, query = self.query_queue.popleft()
@@ -200,14 +205,17 @@ class LiveInferForBenchmark:
                 self._encode_query()
 
             # 2. input a frame, and update the scores list
-            video_scores = self._encode_frame()
-            self.debug_data_list.append(dict(time=self.video_time, **video_scores))
+            video_scores, uncertainty_score = self._encode_frame()
+            self.debug_data_list.append(dict(time=self.video_time, **video_scores,uncertainty_score=uncertainty_score))
+            # self.debug_data_list.append(dict(time=self.video_time, **video_scores))
 
             # 3. check the scores, if need to generate a response
+            # We may want the importance head to be the dictator, since we are training relevance with MSE loss
             need_response = False
             stream_end_score = sum([v for k, v in video_scores.items() if k in self.score_heads])
             self.stream_end_prob_list.append(stream_end_score)
             self.stream_end_score_sum += stream_end_score
+
             if isinstance(self.running_list_length, int) and self.running_list_length > 0:
                 self.stream_end_prob_list = self.stream_end_prob_list[-self.running_list_length:]
             if self.stream_end_score_sum_threshold is not None and self.stream_end_score_sum > self.stream_end_score_sum_threshold:
@@ -215,6 +223,26 @@ class LiveInferForBenchmark:
                 self.stream_end_score_sum = 0
             if self.stream_end_prob_threshold is not None and stream_end_score > self.stream_end_prob_threshold:
                 need_response = True
+            
+            if self.uncertainty_lock:
+                # we add on how many frames we locked down
+                self.uncertainty_lock += 1
+            
+            # If uncertainty is high, wait
+            if need_response and self.uncertainty_wait_threshold is not None and \
+                uncertainty_score > self.uncertainty_wait_threshold:
+
+                # Another way we can define the threshold
+                # if self.num_frames_no_reply > self.max_wait_frames:
+                #     need_response = True
+                # else:
+                #     need_response = False
+
+                if self.uncertainty_lock < self.max_wait_frames:
+                    need_response = False
+                else:
+                    need_response = True
+                    self.uncertainty_lock = 0
 
             # 4. record the responses
             if need_response:
@@ -252,11 +280,10 @@ def round_numbers(data, n):
 
 
 
-def load_video_for_testing(video_file, return_true_frames=False):
+def load_video_for_testing(video_file, return_true_frames=False, max_num_frames=None):
     output_fps=2
     output_resolution=384
-    # max_num_frames=100
-    max_num_frames = None
+    # max_num_frames = None
     pad_color = (0, 0, 0)
     cap = cv2.VideoCapture(video_file)
     # Get original video properties
@@ -362,7 +389,6 @@ if __name__ == '__main__':
                     "query": caption,
                 }
 
-        f_out = open(args.output_fname, 'w')
         results = []
 
         for video_name_with_extension in tqdm(data):
@@ -370,7 +396,9 @@ if __name__ == '__main__':
             video_path = os.path.join(args.input_dir, video_name_with_extension)
             query = random.choice(query_templates) % captions[video_uuid]["query"]
 
-            video_frames, fps, video_duration, true_frames_list = load_video_for_testing(video_path, return_true_frames=True)    
+            # max_num_frames=100
+            max_num_frames = None
+            video_frames, fps, video_duration, true_frames_list = load_video_for_testing(video_path, return_true_frames=True, max_num_frames=max_num_frames)    
 
             conversation = list()
             conversation.append({"role": "system", "content": system_prompt})
@@ -386,6 +414,7 @@ if __name__ == '__main__':
             res = {'video_uuid': video_uuid, 'model_response_list': model_response_list, 'video_duration': video_duration, 'true_frames_list': true_frames_list}
             res['debug_data'] = round_numbers(infer.debug_data_list, 3)
             results.append(res)
+        f_out = open(args.output_fname, 'w')
         f_out.write(json.dumps(results, indent=4))
         f_out.flush()
 

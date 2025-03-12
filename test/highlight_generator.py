@@ -1,0 +1,126 @@
+import os
+import json
+import cv2
+import numpy as np
+
+def knapsack_selection(frames_with_index, max_duration, score_key, weight):
+    """
+    Runs the 0/1 knapsack selection on frames using a specific score.
+    Each frame has a cost of 1 and a value equal to: (frame[score_key] * weight)
+    """
+    n = len(frames_with_index)
+    # Build DP table: dp[i][j] is max total value using first i frames with budget j.
+    dp = [[0 for _ in range(max_duration + 1)] for _ in range(n + 1)]
+    for i in range(1, n + 1):
+        value = frames_with_index[i - 1][score_key] * weight
+        cost = 1  # each frame has cost 1
+        for j in range(max_duration + 1):
+            if cost <= j:
+                dp[i][j] = max(dp[i - 1][j], dp[i - 1][j - cost] + value)
+            else:
+                dp[i][j] = dp[i - 1][j]
+
+    selected_frames = []
+    remaining_capacity = max_duration
+    for i in range(n, 0, -1):
+        if dp[i][remaining_capacity] != dp[i - 1][remaining_capacity]:
+            selected_frames.append(frames_with_index[i - 1])
+            remaining_capacity -= 1
+    selected_frames.reverse()
+    
+    selected_set = set(frame["idx"] for frame in selected_frames)
+    return selected_set
+
+def knapsack_dual_highlight(
+        prediction, 
+        ground_truth_frames, 
+        max_duration,  
+        video_path, 
+        output_filepath, 
+        relevance_weight=.65):
+    """
+    Uses dual knapsack selection on the given prediction:
+      - One knapsack uses the relevance_score weighted by 0.65.
+      - Another uses the informative_score weighted by 0.65.
+    Their selected frame indices are merged (union), and then each selected frame
+    is expanded to a window (with the selected frame in the center) to form the highlight.
+    Finally, a highlight video is written using OpenCV.
+    
+    """
+    frames = prediction['debug_data']
+    n = len(frames)
+    if max_duration >= n:
+        raise ValueError(f"max_duration ({max_duration}) must be smaller than number of frames ({n})")
+    
+    # Add index to each frame for backtracking.
+    frames_with_index = [{"idx": i, **frame} for i, frame in enumerate(frames)]
+    
+    relevance_selected = knapsack_selection(frames_with_index, max_duration, "relevance_score", relevance_weight)
+    informative_selected = knapsack_selection(frames_with_index, max_duration, "informative_score", 1-relevance_weight)
+    
+    merged_selected = relevance_selected.union(informative_selected)
+    
+    # 4. Define highlight segments.
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise IOError(f"Cannot open video {video_path}")
+    
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    last_frame = ground_truth_frames[-1]
+    highlight_indices = set()
+    half_width = int(fps // 2) # center the frame
+    for idx in merged_selected:
+        ground_truth_frame = ground_truth_frames[idx]
+        start_idx = max(0, ground_truth_frame - half_width)
+        end_idx = min(last_frame + 1, ground_truth_frame + half_width + 1)
+        for i in range(start_idx, end_idx):
+            highlight_indices.add(i)
+    highlight_indices = sorted(list(highlight_indices))
+    
+    # 5. Write the highlight video.
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out = cv2.VideoWriter(output_filepath, fourcc, fps, (width, height))
+    
+    frame_idx = 0
+    highlight_set = set(highlight_indices)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        if frame_idx in highlight_set:
+            out.write(frame)
+        frame_idx += 1
+    cap.release()
+    out.release()
+    
+    return merged_selected, highlight_indices
+
+if __name__ == "__main__":
+    prediction_file = "outputs/tvsum_eval/eval/tvsum_test-random_prompt-pred.json"
+    with open(prediction_file, "r") as f:
+        results = json.load(f)
+    
+    for r in results:
+        if r["video_uuid"] == "-esJrBWj2d8":
+            ground_truth_frames = r["true_frames_list"]
+            break
+    ground_truth_frames = r["true_frames_list"]
+    video_path = "datasets/tvsum/ydata-tvsum50-v1_1/video/-esJrBWj2d8.mp4"
+    output_filepath = "highlight_video.mp4"
+    
+    max_duration = 20             
+    # frame_selection_width = 30    
+    
+    merged_selected, highlight_indices = knapsack_dual_highlight(
+        r,
+        ground_truth_frames,
+        max_duration,
+        # frame_selection_width,
+        video_path,
+        output_filepath
+    )
+    
+    print("Merged Selected Frame Indices:", merged_selected)
+    print("Highlight Frame Indices:", highlight_indices)
