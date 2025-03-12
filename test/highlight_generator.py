@@ -1,9 +1,10 @@
 import os
 import json
 import cv2
+from test.inference import *
 import numpy as np
 
-def knapsack_selection(frames_with_index, max_duration, score_key, weight):
+def knapsack_selection(frames_with_index, max_duration, score_key, weight, uncertainty=False):
     """
     Runs the 0/1 knapsack selection on frames using a specific score.
     Each frame has a cost of 1 and a value equal to: (frame[score_key] * weight)
@@ -12,7 +13,10 @@ def knapsack_selection(frames_with_index, max_duration, score_key, weight):
     # Build DP table: dp[i][j] is max total value using first i frames with budget j.
     dp = [[0 for _ in range(max_duration + 1)] for _ in range(n + 1)]
     for i in range(1, n + 1):
-        value = frames_with_index[i - 1][score_key] * weight
+        if uncertainty:
+            value = (frames_with_index[i - 1][score_key] - frames_with_index[i - 1]["uncertainty_score"]/10) * weight
+        else:
+            value = (frames_with_index[i - 1][score_key]) * weight
         cost = 1  # each frame has cost 1
         for j in range(max_duration + 1):
             if cost <= j:
@@ -37,6 +41,7 @@ def knapsack_dual_highlight(
         max_duration,  
         video_path, 
         output_filepath, 
+        uncertainty=False,
         relevance_weight=.65):
     """
     Uses dual knapsack selection on the given prediction:
@@ -55,8 +60,8 @@ def knapsack_dual_highlight(
     # Add index to each frame for backtracking.
     frames_with_index = [{"idx": i, **frame} for i, frame in enumerate(frames)]
     
-    relevance_selected = knapsack_selection(frames_with_index, max_duration, "relevance_score", relevance_weight)
-    informative_selected = knapsack_selection(frames_with_index, max_duration, "informative_score", 1-relevance_weight)
+    relevance_selected = knapsack_selection(frames_with_index, max_duration, "relevance_score", relevance_weight, uncertainty=uncertainty)
+    informative_selected = knapsack_selection(frames_with_index, max_duration, "informative_score", 1-relevance_weight, uncertainty=uncertainty)
     
     merged_selected = relevance_selected.union(informative_selected)
     
@@ -97,30 +102,66 @@ def knapsack_dual_highlight(
     
     return merged_selected, highlight_indices
 
-if __name__ == "__main__":
-    prediction_file = "outputs/tvsum_eval/eval/tvsum_test-random_prompt-pred.json"
-    with open(prediction_file, "r") as f:
-        results = json.load(f)
+
+
+def run_model(video_path, query, output_filepath = "highlight_video.mp4"):
+
+    system_prompt="A multimodal AI assistant is helping users with some activities. \
+        Below is their conversation, interleaved with the list of video frames received by the assistant."
+
+
+    args = parse_args('test')
+    infer = LiveInferForBenchmark(args)
+    max_num_frames = None
+    video_frames, fps, video_duration, true_frames_list = load_video_for_testing(video_path, return_true_frames=True, max_num_frames=max_num_frames)    
+    conversation = list()
+    conversation.append({"role": "system", "content": system_prompt})
+    conversation.append({'role': 'user', 'content': query, 'time': 0})
+    infer.reset()
+    infer.set_fps(fps=fps)
+    infer.input_video_stream(video_frames)
+    infer.input_query_stream(conversation)
+    model_response_list = infer.inference()
     
-    for r in results:
-        if r["video_uuid"] == "-esJrBWj2d8":
-            ground_truth_frames = r["true_frames_list"]
-            break
-    ground_truth_frames = r["true_frames_list"]
-    video_path = "datasets/tvsum/ydata-tvsum50-v1_1/video/-esJrBWj2d8.mp4"
-    output_filepath = "highlight_video.mp4"
     
-    max_duration = 20             
+    max_duration = 20
     # frame_selection_width = 30    
     
     merged_selected, highlight_indices = knapsack_dual_highlight(
-        r,
-        ground_truth_frames,
+        {"debug_data": round_numbers(infer.debug_data_list, 3)},
+        true_frames_list,
         max_duration,
-        # frame_selection_width,
         video_path,
         output_filepath
     )
+
+if __name__ == "__main__":
+    video_path = "/home/aiden/Documents/cs/OmniSolve/video_qa/full_train_derailment.mp4"
+    output_filepath = "multivent_highlight_video.mp4"
+    run_model(video_path, "what caused the derailment?")
+    # prediction_file = "outputs/tvsum_eval/eval/tvsum_test-random_prompt-pred.json"
+    # with open(prediction_file, "r") as f:
+    #     results = json.load(f)
     
-    print("Merged Selected Frame Indices:", merged_selected)
-    print("Highlight Frame Indices:", highlight_indices)
+    # for r in results:
+    #     if r["video_uuid"] == "-esJrBWj2d8":
+    #         ground_truth_frames = r["true_frames_list"]
+    #         break
+    # ground_truth_frames = r["true_frames_list"]
+    # video_path = "datasets/tvsum/ydata-tvsum50-v1_1/video/-esJrBWj2d8.mp4"
+    # output_filepath = "highlight_video.mp4"
+    
+    # max_duration = 20
+    # # frame_selection_width = 30    
+    
+    # merged_selected, highlight_indices = knapsack_dual_highlight(
+    #     r,
+    #     ground_truth_frames,
+    #     max_duration,
+    #     # frame_selection_width,
+    #     video_path,
+    #     output_filepath
+    # )
+    
+    # print("Merged Selected Frame Indices:", merged_selected)
+    # print("Highlight Frame Indices:", highlight_indices)

@@ -32,7 +32,7 @@ from typing import Union
 class LiveTrainingArguments(TrainingArguments):
     # live_version: str = 'test'
     # is_online_model: bool = True
-    grounding_mode: bool = True        # if set, only output probs, never generate reply
+    grounding_mode: bool = False        # if set, only output probs, never generate reply
     live_version: str = 'live1+'
     input_dir: str = 'dataset/tvsum/ydata-tvsum50-v1_1/video'
     dataset_config: str = None
