@@ -71,12 +71,11 @@ def train():
         tokenizer=tokenizer, config=train_dataset_config
     )
 
-    # I thiqnk the model is Quen
+
     data_collator = get_data_collator(tokenizer=tokenizer, image_processor=image_processor, model_config=model.config, **asdict(args))
 
     args.gradient_checkpointing_kwargs = {'use_reentrant': False}
 
-    # We're good to go here
     trainer = TrainerWithLossErrorCatch(
         model=model, tokenizer=tokenizer,
         args=args,

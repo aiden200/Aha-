@@ -83,11 +83,12 @@ pip3 install torch==2.5.1 torchvision==0.20.1 torchaudio --index-url https://dow
 # Evaluation
 
 ## Download the tvsum dataset
-Follow the instructions from the official [tvsum](https://github.com/yalesong/tvsum?tab=readme-ov-file) repository then move it to the datasets folder
+Follow the instructions from the official [tvsum](https://github.com/yalesong/tvsum?tab=readme-ov-file) repository then move it to the datasets folder as `datasets/tvsum`
 
+Run `scripts/inference/tvsum.sh`.
 
 # Training
-
+<!-- 
 ## Download pretrained MMDuet Model
 - Download MMDuet checkpoints from HuggingFace: (https://huggingface.co/wangyueqian/MMDuet) and put the files under folder `./outputs/mmduet`
 ```bash
@@ -95,29 +96,41 @@ mkdir outputs
 cd outputs
 git clone https://huggingface.co/wangyueqian/MMDuet mmduet
 cd ..
-```
+``` -->
 
 ## Set Environment Variables
 Make a `.env` file, and store your `WANDB_API_KEY` in it. Change the variables in `configs/wandb/wandb.config` so you can monitor your model while training.
 
-## Download the Mr.HiSum Dataset following the [official instructions](https://github.com/MRHiSum/MR.HiSum).
+## Prepare the datasets
+- Mr.HiSum:
+  - Prepare the `metadata.csv` and `mr_hisum.h5` following the instructions of the [official repo](https://github.com/MRHiSum/MR.HiSum).
+  - Place the `metadata.csv` file in `datasets/download_tools/` folder.
+  - Place the `mr_hisum.h5` file in `datasets/hisum/annotations` folder.
+  <!-- - Run the metadata generator -->
 
-
-
-
-
-<!-- - Download the videos, and link each video folder to `datasets/${DATASET_NAME}/videos`. Here we list recommended video download links, while you can also download from other sources:
-  - YouCook2: [https://opendatalab.com/OpenDataLab/YouCook2](https://opendatalab.com/OpenDataLab/YouCook2)
+- Download the videos, and link each video folder to `datasets/${DATASET_NAME}/videos`. Recommended download links for each dataset:
+  - Mr.HiSum: [https://github.com/MRHiSum/MR.HiSum](https://github.com/MRHiSum/MR.HiSum).
   - Shot2Story: [https://huggingface.co/mhan/shot2story-videos](https://huggingface.co/mhan/shot2story-videos)
-  - Charades: [https://prior.allenai.org/projects/charades](https://prior.allenai.org/projects/charades)
-  - QVHighlights: [https://github.com/jayleicn/moment_detr/blob/main/data/README.md](https://github.com/jayleicn/moment_detr/blob/main/data/README.md)
+  - COIN: [https://coin-dataset.github.io/](https://coin-dataset.github.io/)
+  <!-- - HiREST: [https://github.com/j-min/HiREST](https://github.com/j-min/HiREST)
+  - DiDeMo: [https://github.com/LisaAnne/TemporalLanguageRelease](https://github.com/LisaAnne/TemporalLanguageRelease)
+  - QueryD: [https://www.robots.ox.ac.uk/~vgg/data/queryd/](https://www.robots.ox.ac.uk/~vgg/data/queryd/) -->
 
-- Download [paraphrase-en.gz](https://github.com/lichengunc/refer/raw/refs/heads/master/evaluation/meteor/data/paraphrase-en.gz) (59MB) which is used for dense video captioning evaluation. Put this file at `test/dvc/metrics/data/paraphrase-en.gz` -->
+
+
+Since some of these datasets (expecially Mr.HiSum) are very big, you can always specify the video path in the `configs/datasets/ahait.json` file where the datasets exist on your local machine.  
+
+*note:* I've left a script to help the download processes at `datasets/download_tools`
+
+When running training code for the first time, the dataset code will traverse all videos of the training dataset and measure the frame rate, duration and number of frames of the videos, and store this information in `datasets/${dataset_name}/videos_metadata.json`. This can take some time.
+
+- Download [paraphrase-en.gz](https://github.com/lichengunc/refer/raw/refs/heads/master/evaluation/meteor/data/paraphrase-en.gz) (59MB) which is used for dense video captioning evaluation. Put this file at `test/dvc/metrics/data/paraphrase-en.gz`
+
 
 
 ## Run the training script
 ```bash
-bash ./scripts/train_on_tvsum.sh
+bash ./scripts/train.sh
 ```
 
 ## Distributed Training
@@ -127,7 +140,7 @@ This model is very big, trained on 8 V100 GPUs, and you will probably need to ut
 We are building off of these projects. Our codebase is built off of the MMDuet codebase:
 - [MMDuet](https://github.com/yellow-binary-tree/MMDuet) 
 - [LLaVA-NeXT](https://github.com/LLaVA-VL/LLaVA-NeXT) 
-- [TVSUM](https://github.com/yalesong/tvsum) 
+
 
 <!-- 
 ## Inference and evaluation

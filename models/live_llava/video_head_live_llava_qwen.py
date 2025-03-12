@@ -87,9 +87,11 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         self.info_loss_weight = 1
         self.ref_loss_weight = 0.5
         self.uncertainty_loss_weight = 0.1
+        self.tv_loss_weight = 0.1
         print(f"using lm_loss_weight: {self.lm_loss_weight}, video_loss_weight: {self.video_loss_weight}, \
-              info_loss_weight: {self.info_loss_weight}, ref_loss_weight: {self.ref_loss_weight}, and \
-                uncertainty_loss_weight: {self.uncertainty_loss_weight} for training")
+              info_loss_weight: {self.info_loss_weight}, ref_loss_weight: {self.ref_loss_weight}, \
+                uncertainty_loss_weight: {self.uncertainty_loss_weight}, and \
+                     tv_loss_weight: {self.tv_loss_weight} for training")
 
     def get_model(self):
         return self.model
@@ -170,7 +172,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         informative_logits = self.informative_head(hidden_states_no_grad).float()
         relevance_logits = self.relevance_head(hidden_states_no_grad).float()
         log_variance = self.uncertainty_head(hidden_states_no_grad).float()
-        variance = torch.exp(log_variance)
+        variance = torch.exp(torch.clamp(log_variance, min=-6, max=2))
 
         # NOTE: all labels used here are already shifted in data collator
         ce_loss_fct = CrossEntropyLoss()
@@ -181,7 +183,6 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             if not(labels != -100).any():
                 labels[:, 0] = input_ids[:, 1]      # make sure lm_loss is calculated for every example, or the deepspeed training process will hang
             lm_loss = ce_loss_fct(logits.flatten(0, 1), labels.flatten())
-            # lm_loss = loss_fct(logits.flatten(0, 1), labels.flatten().float()) # for MSE
             if not return_dict:
                 outputs = (logits,) + outputs + (loss,)
         else:
@@ -197,22 +198,30 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             if not (informative_labels != -100).any():
                 informative_labels[:, 0] = 0  # Ensure valid target for at least one example
             info_loss = ce_loss_fct(
-                informative_logits.view(-1, informative_logits.size(-1)),
-                informative_labels.view(-1)
+                informative_logits.flatten(0, 1), # merge batch dimension and frame
+                informative_labels.flatten(0, 1)
             )
 
         # Relevance head: MSE + uncertainty (NLL) loss
         if relevance_labels is not None:
             if not (relevance_labels != -100).any():
-                relevance_labels[:, 0] = 0 
+                relevance_labels[:, 0] = 0  # make sure video_loss is calculated for every example, or the deepspeed training process will hang
             mse_loss_fct = MSELoss()
             ref_loss = mse_loss_fct(
-                relevance_logits.view(-1),
-                relevance_labels.view(-1).float()
+                relevance_logits.flatten(0, 1),
+                relevance_labels.flatten(0, 1).float()
             )
+
+            # we only enforce tv loss if there is more than one point
+            if relevance_logits.shape[1] > 1:
+                # Total variation loss to enforce smoothness
+                tv_loss = torch.mean((relevance_logits[:, 1:] - relevance_logits[:, :-1]) ** 2)
+            else:
+                tv_loss = 0
+
             # NLL loss using uncertainty; note: this is applied only on the relevance head
-            nll_loss = ((relevance_labels.view(-1).float() - relevance_logits.view(-1)) ** 2) / (2 * variance.view(-1))
-            nll_loss += 0.5 * log_variance.view(-1)
+            nll_loss = ((relevance_labels.flatten(0, 1).float() - relevance_logits.flatten(0, 1)) ** 2) / (2 * variance.flatten(0, 1))
+            nll_loss += 0.5 * log_variance.flatten(0, 1)
             uncertainty_loss = nll_loss.mean()
 
         # merge the 2 labels together, so this loss must be calculated as all training examples contains either informative_label or relevance_label.
@@ -233,6 +242,8 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         #     video_loss = nll_loss.mean()
         # else:
         #     video_loss = 0.
+
+        ref_loss += self.tv_loss_weight * tv_loss 
 
         video_loss = self.info_loss_weight * info_loss + self.ref_loss_weight * ref_loss + self.uncertainty_loss_weight * uncertainty_loss
 

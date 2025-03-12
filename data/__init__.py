@@ -7,6 +7,7 @@ from .dvc import DenseVideoCaptioningStreamDataset
 from .magqa import MAGQAStreamDataset
 from .grounding import GroundingStreamDataset
 from .intuition_grounding import HumanIntuitionDataset
+from .hisum import HiSumDataset
 
 __all__ = [
     'build_concat_train_dataset',
