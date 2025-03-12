@@ -35,9 +35,21 @@ def get_video_duration_and_fps(args):
 
 class StreamMixIn(torch.utils.data.Dataset):
     def __init__(self,
-                 video_root: str = None, anno_file: str = None, metadata_path: str = None, caption_file: str = None, frame_fps: float = 2, frame_size: int = 384,
-                 system_prompt: str = None, augmentation: bool = False,
-                 max_num_frames: int = 128, tokenizer: PreTrainedTokenizer = None, skip_video=False, **kwargs):
+                 video_root: str = None, 
+                 anno_file: str = None, 
+                 metadata_path: str = None, 
+                 hisum_h5_file: str=None, 
+                 caption_file: str = None, 
+                 hisum_metadata: str = None,
+                 frame_fps: float = 2, 
+                 frame_size: int = 384,
+                 system_prompt: str = None, 
+                 augmentation: bool = False,
+                 max_num_frames: int = 128, 
+                 tokenizer: PreTrainedTokenizer = None, 
+                 skip_video=False, 
+                 **kwargs
+                 ):
         super().__init__()
         self.video_root = video_root
         self.anno_file = anno_file
@@ -55,6 +67,15 @@ class StreamMixIn(torch.utils.data.Dataset):
             self.captions = self.get_captions(caption_file)
         else:
             self.captions = None
+        if hisum_h5_file:
+            self.hisum_h5_file = hisum_h5_file
+        else:
+            self.hisum_h5_file = None
+        if hisum_metadata:
+            self.hisum_metadata = hisum_metadata
+        else:
+            self.hisum_metadata = None
+        
 
 
     def __len__(self):

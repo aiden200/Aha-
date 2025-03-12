@@ -33,8 +33,12 @@ class HiSumDataset(StreamMixIn):
         super().__init__(**kwargs)
         annos, self.annos = self.annos, list()
 
-        # Annos is the annotation .json file that we need to create, not the one the model automatically generates.
+        #TODO caption data path, conversation generation
+
+        # Annos is the annotation .json file that we have with.
+        # .h5 file that generates annotation
         # Self.metadata is something that the model generates
+        # We also have the video0001 -> yt_name conversion
         for anno in tqdm(annos):
             curr_info = annos[anno]
             video_uid = curr_info['video_uid']
@@ -62,44 +66,39 @@ class HiSumDataset(StreamMixIn):
 
 
     def get_annos(self) -> dict:
-        # load tsv file and get average importance scores
-        anno_path = os.path.join(self.anno_file)
-        metadata_path = self.hisum_metadata_path
-        assert os.path.exists(anno_path) and os.path.exists(metadata_path)
-        with h5py.File(anno_path, "r") as hdf:
-            videos = list(hdf.keys())
-            # all videos
-            for video in videos:
-                # video is name
-                # we have access to this ['change_points', 'features', 'gt_summary', 'gtscore']
-                # features = video frame features
-                # gtscore = most replayed statistics normalized to a score of 0 to 1
-                # change_points = shot boundary information
-                # gtsummary obtained by solving the 0/1 knapsack algorithm on shots 
-
-
-        vid_count = DefaultDict(int)
         annotations = {}
-        with open(anno_path, 'r', newline='') as file:
-            reader = csv.reader(file, delimiter='\t')
-            for row in reader:
-                video_id = row[0]
-                category_code = row[1]
-                importance_scores = np.array(list(map(int, row[2].split(','))), dtype=np.float64)
-                if video_id not in annotations:
-                    annotations[video_id] = {
-                        "importance_scores": importance_scores,
-                        "video_uid": video_id
-                    }
-                else:
-                    annotations[video_id]["importance_scores"]  += importance_scores
-                
-                vid_count[video_id] += 1
+        anno_path = os.path.join(self.anno_file) # .train split file
+        h5_file = os.path.join(self.hisum_h5_file) #.h5 file
+        hisum_metadata = os.path.join(self.hisum_metadata) #.json file with metadata
+        assert os.path.exists(anno_path) and os.path.exists(h5_file) and os.path.exists(hisum_metadata)
+        with open(anno_path, "r") as f:
+            videos = json.load(f)["train_keys"]
         
-        for video in annotations:
-            annotations[video]["importance_scores"] /= vid_count[video]
-            # Normalizing the score, the maximum score is 5
-            annotations[video]["importance_scores"]  /= 5.0
+        video_info = {}
+
+        with open(hisum_metadata, mode='r', newline='', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                video_info[row["yt8m_file"]] = {
+                    "caption" : row["title"],
+                    "categories" : row["labels"] # are the labels commas going to affect something? try loading also need to parse
+                    #TODO
+                }
+        
+        with h5py.File(anno_path, "r") as hdf:
+            for video in videos:
+                importance_scores = list(hdf[video]["gtscore"])
+                category = hdf[video][""]
+                #TODO add category from two json files
+                #TODO might as well add captions too
+                annotations[video] = {
+                    "importance_scores": importance_scores,
+                    "categories": categories,
+                    "caption": caption
+                }
+                
+
+               
         return annotations
     
 
@@ -139,12 +138,15 @@ if __name__ == '__main__':
     llava_config = LiveConfigMixin(frame_token_cls=False, frame_token_pooled=[1,1], frame_num_tokens=1)
     llava_tokenizer = build_live_tokenizer_and_update_config('lmms-lab/llava-onevision-qwen2-7b-ov', llava_config)
 
+
     dataset = HiSumDataset(
-        video_root='datasets/tvsum/ydata-tvsum50-v1_1/video',
-        anno_file='datasets/tvsum/annotations/train.json', 
-        metadata_path='datasets/tvsum/videos_metadata.json', # This is automatically generated
-        system_prompt='This is a system prompt.', tokenizer=llava_tokenizer,
-        frame_fps=0.5, max_num_frames=120
+        video_root="/data/yt8m/videos",
+        anno_file="datasets/hisum/annotations/train.json",
+        metadata_path="datasets/hisum/videos_metadata.json",
+        hisum_h5_file="datasets/hisum/annotations/mr_hisum.h5",
+        hisum_metadata="datasets/hisum/annotations/mr_hisum_metadata.csv",
+        frame_fps=0.5,
+        tokenizer=llava_tokenizer
     )
 
     print('length of the dataset:', len(dataset))

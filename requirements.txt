@@ -40,3 +40,4 @@ transformers==4.44.2
 wandb==0.17.9
 h5py==3.13.0
 yt-dlp==2021.12.17
+bs4
