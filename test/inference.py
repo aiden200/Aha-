@@ -252,10 +252,11 @@ def round_numbers(data, n):
 
 
 
-def load_video_for_testing(video_file):
+def load_video_for_testing(video_file, return_true_frames=False):
     output_fps=2
     output_resolution=384
-    max_num_frames=100
+    # max_num_frames=100
+    max_num_frames = None
     pad_color = (0, 0, 0)
     cap = cv2.VideoCapture(video_file)
     # Get original video properties
@@ -270,6 +271,8 @@ def load_video_for_testing(video_file):
     num_frames_total = math.ceil(video_duration * output_fps)
     frame_sec = [i / output_fps for i in range(num_frames_total)]
     frame_list, cur_time, frame_index = [], 0, 0
+    true_frame_index = 0
+    true_frame_index_list = []
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
@@ -294,12 +297,19 @@ def load_video_for_testing(video_file):
                 borderType=cv2.BORDER_CONSTANT,
                 value=pad_color
             )
+            if return_true_frames:
+                true_frame_index_list.append(true_frame_index)
+            
             frame_list.append(np.transpose(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB), (2, 0, 1)))
             frame_index += 1
-        if len(frame_list) >= max_num_frames:
+        if max_num_frames and len(frame_list) >= max_num_frames:
             break
         cur_time += 1 / input_fps
+        true_frame_index += 1
     cap.release()
+
+    if return_true_frames:
+        return torch.tensor(np.stack(frame_list)), output_fps, video_duration, true_frame_index_list
 
     return torch.tensor(np.stack(frame_list)), output_fps, video_duration
 
@@ -330,12 +340,13 @@ if __name__ == '__main__':
 
 
     args = parse_args('test')
+    if args.skip_eval:
+        print("Skipping evaluation")
+        # We don't want to reevaluate
+        sys.exit() 
     print(args)
     infer = LiveInferForBenchmark(args)
     
-    if args.skip_eval:
-        # We don't want to reevaluate
-        sys.exit() 
     
     if args.test_dataset == "tvsum":
         with open(args.video_metadata_file, 'r') as f:
@@ -359,7 +370,7 @@ if __name__ == '__main__':
             video_path = os.path.join(args.input_dir, video_name_with_extension)
             query = random.choice(query_templates) % captions[video_uuid]["query"]
 
-            video_frames, fps, video_duration = load_video_for_testing(video_path)    
+            video_frames, fps, video_duration, true_frames_list = load_video_for_testing(video_path, return_true_frames=True)    
 
             conversation = list()
             conversation.append({"role": "system", "content": system_prompt})
@@ -372,7 +383,7 @@ if __name__ == '__main__':
             infer.input_video_stream(video_frames)
             infer.input_query_stream(conversation)
             model_response_list = infer.inference()
-            res = {'video_uuid': video_uuid, 'model_response_list': model_response_list, 'video_duration': video_duration}
+            res = {'video_uuid': video_uuid, 'model_response_list': model_response_list, 'video_duration': video_duration, 'true_frames_list': true_frames_list}
             res['debug_data'] = round_numbers(infer.debug_data_list, 3)
             results.append(res)
         f_out.write(json.dumps(results, indent=4))

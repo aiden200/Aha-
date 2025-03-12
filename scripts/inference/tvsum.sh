@@ -10,7 +10,7 @@ mkdir -vp  ${output_dir}/eval
 python -u -m test.inference --grounding_mode true \
     --llm_pretrained lmms-lab/llava-onevision-qwen2-7b-ov --bf16 true \
     --test_dataset tvsum \
-    --skip_eval false \
+    --skip_eval true \
     --caption_metadata_file datasets/tvsum/ydata-tvsum50-v1_1/data/ydata-tvsum50-info.tsv \
     --video_metadata_file datasets/tvsum/videos_metadata.json \
     --lora_pretrained ${pretrained_dir} \
@@ -27,6 +27,6 @@ wait
 # --------------------
 python -u -m test.evaluate --func tvsum \
     --pred_file ${output_dir}/eval/tvsum_test-random_prompt-pred.json \
-    --gold_file datasets/tvsum/annotations/test-random_prompt.json \
+    --gold_file datasets/tvsum/ydata-tvsum50-v1_1/data/ydata-tvsum50-anno.tsv \
     --output_file ${output_dir}/eval/tvsum_test-random_prompt-eval.json \
     > ${output_dir}/eval/tvsum_test-random_prompt-eval.log 2>&1 &
