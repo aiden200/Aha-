@@ -62,19 +62,20 @@ class StreamMixIn(torch.utils.data.Dataset):
         self.max_num_frames = max_num_frames
         self.skip_video = skip_video     # used in text-only scenarios
         self.metadata = self.get_metadata()
-        self.annos = self.get_annos()
         if caption_file:
             self.captions = self.get_captions(caption_file)
         else:
             self.captions = None
         if hisum_h5_file:
             self.hisum_h5_file = hisum_h5_file
+            print(hisum_h5_file)
         else:
             self.hisum_h5_file = None
         if hisum_metadata:
             self.hisum_metadata = hisum_metadata
         else:
             self.hisum_metadata = None
+        self.annos = self.get_annos()
         
 
 
@@ -147,6 +148,7 @@ class StreamMixIn(torch.utils.data.Dataset):
         video_metadata = self.metadata[file]
         # load the frames, and downsample to self.frame_fps
         cap = cv2.VideoCapture(video_metadata['path'])
+
         num_frames_total = math.floor(video_metadata['duration'] * self.frame_fps)
         frame_sec = [i / self.frame_fps for i in range(num_frames_total)]
         frames, cur_time, frame_index = [], 0, 0
@@ -204,6 +206,11 @@ class StreamMixIn(torch.utils.data.Dataset):
             conversation, load_ranges = self.max_frames_clip(conversation, load_ranges, self.max_num_frames)
             # after max_frames_clip, sometimes there may be no conversation left due to the conversations are too late.
             # we also need to keep this kind of data, as no conversation can also be a real-time situation
+            # ranges = []
+            # for path, ranger in load_ranges.items():
+            #     loaded_video = self.load_video(path)[ranger]
+            #     if loaded_video:
+                    # ranges.append(loaded_video)
             ranges = [self.load_video(path)[ranger] for path, ranger in load_ranges.items()]
             frames = torch.cat(ranges)
         else:

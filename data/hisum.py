@@ -6,6 +6,7 @@ import math
 import random
 import numpy as np
 from typing import DefaultDict
+import ast
 
 from transformers.utils import logging
 from .stream import StreamMixIn
@@ -33,7 +34,6 @@ class HiSumDataset(StreamMixIn):
         super().__init__(**kwargs)
         annos, self.annos = self.annos, list()
 
-        #TODO caption data path, conversation generation
 
         # Annos is the annotation .json file that we have with.
         # .h5 file that generates annotation
@@ -42,7 +42,8 @@ class HiSumDataset(StreamMixIn):
         for anno in tqdm(annos):
             curr_info = annos[anno]
             video_uid = curr_info['video_uid']
-            caption_data =self.captions[video_uid]
+            caption = curr_info["caption"]
+            importance_scores = curr_info["importance_scores"]
 
             # to match metadata parsing
             video_uid = video_uid + ".mp4"
@@ -52,24 +53,25 @@ class HiSumDataset(StreamMixIn):
                 continue
             duration = self.metadata[video_uid]['duration']
             conversation, current_frame = list(), 0
-            conversation.append({'role': 'user', 'content': random.choice(self.query_templates) % caption_data['query'], 'learn': False})
+            conversation.append({'role': 'user', 'content': random.choice(self.query_templates) % caption, 'learn': False})
 
-            for i in range(len(curr_info["importance_scores"])):
-                conversation.append({'role': 'stream', 'num_frames': 1, 'learn': True, 'related': curr_info["importance_scores"][i]})
+            for i in range(len(importance_scores)):
+                conversation.append({'role': 'stream', 'num_frames': 1, 'learn': True, 'related': importance_scores[i]})
             last_frame = math.floor(duration * self.frame_fps)
-            
+            # print(conversation)
             self.annos.append({
                 'conversation': conversation,
                 'load_ranges': {video_uid: range(0, last_frame)}
             })
         print(f'Dataset {self.__class__.__name__} has {len(self)} examples. Example data: {reformat_example_for_debug(self[0])}')
-
+    
 
     def get_annos(self) -> dict:
         annotations = {}
         anno_path = os.path.join(self.anno_file) # .train split file
         h5_file = os.path.join(self.hisum_h5_file) #.h5 file
         hisum_metadata = os.path.join(self.hisum_metadata) #.json file with metadata
+        # print(anno_path, h5_file, hisum_metadata)
         assert os.path.exists(anno_path) and os.path.exists(h5_file) and os.path.exists(hisum_metadata)
         with open(anno_path, "r") as f:
             videos = json.load(f)["train_keys"]
@@ -79,26 +81,41 @@ class HiSumDataset(StreamMixIn):
         with open(hisum_metadata, mode='r', newline='', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
-                video_info[row["yt8m_file"]] = {
+                try:
+                    categories = ast.literal_eval(row["labels"])  # Convert string to list
+                except (SyntaxError, ValueError):
+                    logger.warning("Hisum failed to parse categories")
+                    categories = []  # Default to empty list if parsing fails
+                video_info[row["video_id"]] = {
                     "caption" : row["title"],
-                    "categories" : row["labels"] # are the labels commas going to affect something? try loading also need to parse
-                    #TODO
+                    "categories" : [c for c in categories if c],
+                    'youtube_id' : row["youtube_id"],
+                    'yt8m_id': row["yt8m_file"],
+                    'video_id': row["video_id"]
                 }
         
-        with h5py.File(anno_path, "r") as hdf:
-            for video in videos:
-                importance_scores = list(hdf[video]["gtscore"])
-                category = hdf[video][""]
-                #TODO add category from two json files
-                #TODO might as well add captions too
-                annotations[video] = {
-                    "importance_scores": importance_scores,
-                    "categories": categories,
-                    "caption": caption
-                }
+        with h5py.File(h5_file, "r") as hdf:
+            for video_id in videos:
+                # If we were able to obtain the caption and download the video
+                # video_id is represented by video_[VID NUMBER] 
+                #TODO change this back
+                if video_id in video_info:
+                    # and os.path.exists(os.path.join(self.video_root, f"{video_info[video_id]['youtube_id']}.mp4")):
+                    
+                    
+                    importance_scores = list(hdf[video_id]["gtscore"])
+                    # importance_scores = [0]
+                    categories = video_info[video_id]["categories"]
+                    caption = video_info[video_id]["caption"]
+                    video_uid = video_info[video_id]["youtube_id"]
+                    annotations[video_id] = {
+                        "importance_scores": importance_scores,
+                        "categories": categories,
+                        "caption": caption,
+                        "video_uid": video_uid, #""
+                        "video_id": video_id
+                    }
                 
-
-               
         return annotations
     
 
@@ -141,7 +158,7 @@ if __name__ == '__main__':
 
     dataset = HiSumDataset(
         video_root="/data/yt8m/videos",
-        anno_file="datasets/hisum/annotations/train.json",
+        anno_file="datasets/hisum/annotations/split.json",
         metadata_path="datasets/hisum/videos_metadata.json",
         hisum_h5_file="datasets/hisum/annotations/mr_hisum.h5",
         hisum_metadata="datasets/hisum/annotations/mr_hisum_metadata.csv",

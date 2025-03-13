@@ -136,9 +136,9 @@ def run_model(video_path, query, output_filepath = "highlight_video.mp4"):
     )
 
 if __name__ == "__main__":
-    video_path = "/home/aiden/Documents/cs/OmniSolve/video_qa/full_train_derailment.mp4"
-    output_filepath = "multivent_highlight_video.mp4"
-    run_model(video_path, "what caused the derailment?")
+    video_path = "/home/aiden/Documents/cs/Aha-/datasets/tvsum/ydata-tvsum50-v1_1/video/-esJrBWj2d8.mp4"
+    output_filepath = "cat_eat_food_highlight.mp4"
+    run_model(video_path, "Will A Cat Eat Dog Food?")
     # prediction_file = "outputs/tvsum_eval/eval/tvsum_test-random_prompt-pred.json"
     # with open(prediction_file, "r") as f:
     #     results = json.load(f)

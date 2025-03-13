@@ -192,6 +192,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         info_loss = 0
         ref_loss = 0
         uncertainty_loss = 0
+        tv_loss = 0
 
         # Informative head: CE loss for classification 
         if informative_labels is not None:
@@ -201,7 +202,6 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
                 informative_logits.flatten(0, 1), # merge batch dimension and frame
                 informative_labels.flatten(0, 1)
             )
-
         # Relevance head: MSE + uncertainty (NLL) loss
         if relevance_labels is not None:
             if not (relevance_labels != -100).any():
@@ -216,8 +216,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             if relevance_logits.shape[1] > 1:
                 # Total variation loss to enforce smoothness
                 tv_loss = torch.mean((relevance_logits[:, 1:] - relevance_logits[:, :-1]) ** 2)
-            else:
-                tv_loss = 0
+
 
             # NLL loss using uncertainty; note: this is applied only on the relevance head
             nll_loss = ((relevance_labels.flatten(0, 1).float() - relevance_logits.flatten(0, 1)) ** 2) / (2 * variance.flatten(0, 1))
