@@ -8,6 +8,16 @@ except:
 from transformers import AutoModel
 from torchvision.transforms.functional import to_pil_image, normalize
 
+def is_valid_video_cap(video_path):
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return False
+    ret, frame = cap.read()
+    if not ret or frame is None:
+        return False
+    cap.release()
+    return True
+
 
 def reformat_example_for_debug(data):
     if isinstance(data, torch.Tensor) and len(data.size()) > 1:

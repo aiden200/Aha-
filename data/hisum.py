@@ -5,12 +5,14 @@ from tqdm import tqdm, trange
 import math
 import random
 import numpy as np
+import time
 from typing import DefaultDict
 import ast
 
 from transformers.utils import logging
 from .stream import StreamMixIn
-from .utils import reformat_example_for_debug, DictWithTo
+from .utils import reformat_example_for_debug, DictWithTo, is_valid_video_cap
+
 logger = logging.get_logger(__name__)
 
 
@@ -51,17 +53,25 @@ class HiSumDataset(StreamMixIn):
             if video_uid not in self.metadata:
                 logger.warning(f'Missmatch in captions and annotations: {video_uid}')
                 continue
+            if not self.metadata[video_uid]["valid"]:
+                logger.warning(f"Video {video_uid} not loaded, possibly corrupted")
+                # print("Failed video")
+                continue
             duration = self.metadata[video_uid]['duration']
             conversation, current_frame = list(), 0
             conversation.append({'role': 'user', 'content': random.choice(self.query_templates) % caption, 'learn': False})
-
+            
+            # One score per duration
             for i in range(len(importance_scores)):
                 conversation.append({'role': 'stream', 'num_frames': 1, 'learn': True, 'related': importance_scores[i]})
-            last_frame = math.floor(duration * self.frame_fps)
-            # print(conversation)
+
+            final_frame = math.floor(duration * self.frame_fps)
+            if final_frame < len(conversation):
+                conversation = conversation[:final_frame + 1]
+            
             self.annos.append({
                 'conversation': conversation,
-                'load_ranges': {video_uid: range(0, last_frame)}
+                'load_ranges': {video_uid: range(0, final_frame)}
             })
         print(f'Dataset {self.__class__.__name__} has {len(self)} examples. Example data: {reformat_example_for_debug(self[0])}')
     
@@ -94,28 +104,33 @@ class HiSumDataset(StreamMixIn):
                     'video_id': row["video_id"]
                 }
         
+        # s = time.time()
+        num_vids = 0
         with h5py.File(h5_file, "r") as hdf:
+            failed_videos = 0
             for video_id in videos:
                 # If we were able to obtain the caption and download the video
                 # video_id is represented by video_[VID NUMBER] 
-                #TODO change this back
+
                 if video_id in video_info:
-                    # and os.path.exists(os.path.join(self.video_root, f"{video_info[video_id]['youtube_id']}.mp4")):
-                    
-                    
-                    importance_scores = list(hdf[video_id]["gtscore"])
-                    # importance_scores = [0]
-                    categories = video_info[video_id]["categories"]
-                    caption = video_info[video_id]["caption"]
-                    video_uid = video_info[video_id]["youtube_id"]
-                    annotations[video_id] = {
-                        "importance_scores": importance_scores,
-                        "categories": categories,
-                        "caption": caption,
-                        "video_uid": video_uid, #""
-                        "video_id": video_id
-                    }
-                
+                    video_filepath = os.path.join(self.video_root, f"{video_info[video_id]['youtube_id']}.mp4")
+                    # checking if we managed to download the video
+                    if os.path.exists(video_filepath):
+
+                        importance_scores = list(hdf[video_id]["gtscore"])
+                        # importance_scores = [0]
+                        categories = video_info[video_id]["categories"]
+                        caption = video_info[video_id]["caption"]
+                        video_uid = video_info[video_id]["youtube_id"]
+                        annotations[video_id] = {
+                            "importance_scores": importance_scores,
+                            "categories": categories,
+                            "caption": caption,
+                            "video_uid": video_uid, #""
+                            "video_id": video_id
+                        }
+
+
         return annotations
     
 
@@ -162,11 +177,11 @@ if __name__ == '__main__':
         metadata_path="datasets/hisum/videos_metadata.json",
         hisum_h5_file="datasets/hisum/annotations/mr_hisum.h5",
         hisum_metadata="datasets/hisum/annotations/mr_hisum_metadata.csv",
-        frame_fps=0.5,
+        frame_fps=1,
         tokenizer=llava_tokenizer
     )
 
     print('length of the dataset:', len(dataset))
     for i in range(0, min(1000, len(dataset)), 20):
         example = dataset[i]
-        print(reformat_example_for_debug(example))
+        # print(reformat_example_for_debug(example))

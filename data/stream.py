@@ -4,7 +4,7 @@ from transformers import PreTrainedTokenizer
 import torch.distributed as dist
 import multiprocessing as mp
 
-from .utils import rand_bool, resize_and_pad_frame
+from .utils import rand_bool, resize_and_pad_frame, is_valid_video_cap
 
 
 def get_all_files(directory):
@@ -26,11 +26,12 @@ def parse_length_to_seconds(length: str) -> int:
 def get_video_duration_and_fps(args):
     file, video_root = args
     path = os.path.join(video_root, file)
+    valid_vid = is_valid_video_cap(path)
     cap = cv2.VideoCapture(path)
     fps = cap.get(cv2.CAP_PROP_FPS)
     frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
     duration = frame_count / fps if fps > 0 else 0
-    return file, {'duration': duration, 'fps': fps, 'path': path, 'frame_count': frame_count}
+    return file, {'duration': duration, 'fps': fps, 'path': path, 'frame_count': frame_count, 'valid': valid_vid}
 
 
 class StreamMixIn(torch.utils.data.Dataset):
@@ -68,7 +69,7 @@ class StreamMixIn(torch.utils.data.Dataset):
             self.captions = None
         if hisum_h5_file:
             self.hisum_h5_file = hisum_h5_file
-            print(hisum_h5_file)
+            # print(hisum_h5_file)
         else:
             self.hisum_h5_file = None
         if hisum_metadata:
@@ -147,6 +148,7 @@ class StreamMixIn(torch.utils.data.Dataset):
     def load_video(self, file):
         video_metadata = self.metadata[file]
         # load the frames, and downsample to self.frame_fps
+        # print(video_metadata)
         cap = cv2.VideoCapture(video_metadata['path'])
 
         num_frames_total = math.floor(video_metadata['duration'] * self.frame_fps)
@@ -198,6 +200,7 @@ class StreamMixIn(torch.utils.data.Dataset):
 
     def __getitem__(self, *, conversation: list[dict], load_ranges: dict[str, range] | torch.Tensor = None, add_generation_prompt=False, **kwargs):
         # 1. load videos
+        # print(load_ranges)
         if self.skip_video:
             frames = torch.tensor([])
         elif isinstance(load_ranges, torch.Tensor):
@@ -208,9 +211,10 @@ class StreamMixIn(torch.utils.data.Dataset):
             # we also need to keep this kind of data, as no conversation can also be a real-time situation
             # ranges = []
             # for path, ranger in load_ranges.items():
+            #     # print(path, ranger)
             #     loaded_video = self.load_video(path)[ranger]
             #     if loaded_video:
-                    # ranges.append(loaded_video)
+            #         ranges.append(loaded_video)
             ranges = [self.load_video(path)[ranger] for path, ranger in load_ranges.items()]
             frames = torch.cat(ranges)
         else:

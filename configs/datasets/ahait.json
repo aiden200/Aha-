@@ -25,6 +25,6 @@
         "metadata_path": "datasets/hisum/videos_metadata.json",
         "hisum_h5_file": "datasets/hisum/annotations/mr_hisum.h5",
         "hisum_metadata": "datasets/hisum/vocabulary.csv",
-        "frame_fps": 0.5
+        "frame_fps": 1
     }
 ]
