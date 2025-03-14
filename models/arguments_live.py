@@ -42,6 +42,7 @@ class LiveTrainingArguments(TrainingArguments):
     lora_pretrained: str = None
     # LoRA parameters to tune over the frozen Qwen model
     lora_modules: str = "model\.layers.*(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$"
+    # lora_modules: str = "model\.layers.*(down_proj)$"
     lora_r: int = 16
     lora_alpha: int = 32
     # These are fully trainable

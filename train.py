@@ -16,16 +16,16 @@ load_dotenv()
 
 class TrainerWithLossErrorCatch(Trainer):
     def training_step(self, model, inputs):
-        # try:
-        loss = super().training_step(model, inputs)
+        try:
+            loss = super().training_step(model, inputs)
         # if wandb and torch.distributed.get_rank() == 0:
         #     wandb.log({"loss": loss})
-        return loss
+            return loss
         # We don't want to use this for now
-        # except Exception as e:
-        #     print(f"Error during training step: {e}, use a dummy loss = 0.0")
-        #     return torch.tensor(0., device=self.args.device,
-        #                         dtype=torch.float16 if self.args.fp16 else torch.bfloat16 if self.args.bf16 else torch.float32)  # dummy loss
+        except Exception as e:
+            print(f"Error during training step: {e}, use a dummy loss = 0.0")
+            return torch.tensor(0., device=self.args.device,
+                                dtype=torch.float16 if self.args.fp16 else torch.bfloat16 if self.args.bf16 else torch.float32)  # dummy loss
 
 
 def rank0_print(*args):

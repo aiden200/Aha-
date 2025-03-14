@@ -132,9 +132,9 @@ if __name__ == '__main__':
     llava_tokenizer = build_live_tokenizer_and_update_config('lmms-lab/llava-onevision-qwen2-7b-ov', llava_config)
 
     dataset = MAGQAStreamDataset(
-        video_root='datasets/shot2story/videos_2fps_max384',
-        anno_file='datasets/shot2story/annotations/livechat_train-multiturn-gpt4o-0.25_0.5-earlier.json',
-        metadata_path='datasets/shot2story/videos_2fps_max384_metadata.json',
+        video_root='/data/shot2story/videos/release_134k_videos',
+        anno_file='datasets/shot2story/annotations/magqa_train-0.25_0.5-earlier.json',
+        metadata_path='datasets/shot2story/release_134k_videos_metadata.json',
         system_prompt='This is a system prompt.',
         tokenizer=llava_tokenizer
     )

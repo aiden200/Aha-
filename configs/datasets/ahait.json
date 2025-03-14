@@ -1,15 +1,15 @@
 [
     {
         "dataset_cls": "DenseVideoCaptioningStreamDataset",
-        "video_root": "datasets/shot2story/videos",
+        "video_root": "/data/shot2story/videos/release_134k_videos",
         "anno_file": "datasets/shot2story/annotations/dvc_train-human_anno-0.25_0.5_earlier.json",
-        "metadata_path": "datasets/shot2story/videos_metadata.json"
+        "metadata_path": "datasets/shot2story/release_134k_videos_metadata.json"
     },
     {
         "dataset_cls": "MAGQAStreamDataset",
-        "video_root": "datasets/shot2story/videos",
+        "video_root": "/data/shot2story/videos/release_134k_videos",
         "anno_file": "datasets/shot2story/annotations/magqa_train-0.25_0.5-earlier.json",
-        "metadata_path": "datasets/shot2story/videos_metadata.json"
+        "metadata_path": "datasets/shot2story/release_134k_videos_metadata.json"
     },
     {
         "dataset_cls": "DenseVideoCaptioningStreamDataset",

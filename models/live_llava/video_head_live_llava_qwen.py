@@ -208,7 +208,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
                 relevance_labels[:, 0] = 0  # make sure video_loss is calculated for every example, or the deepspeed training process will hang
             mse_loss_fct = MSELoss()
             ref_loss = mse_loss_fct(
-                relevance_logits.flatten(0, 1),
+                relevance_logits.flatten(0, 1).float(),
                 relevance_labels.flatten(0, 1).float()
             )
 
@@ -219,7 +219,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
 
 
             # NLL loss using uncertainty; note: this is applied only on the relevance head
-            nll_loss = ((relevance_labels.flatten(0, 1).float() - relevance_logits.flatten(0, 1)) ** 2) / (2 * variance.flatten(0, 1))
+            nll_loss = ((relevance_labels.flatten(0, 1).float() - relevance_logits.flatten(0, 1).float()) ** 2) / (2 * variance.flatten(0, 1))
             nll_loss += 0.5 * log_variance.flatten(0, 1)
             uncertainty_loss = nll_loss.mean()
 
