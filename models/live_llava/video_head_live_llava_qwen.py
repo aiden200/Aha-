@@ -82,12 +82,12 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         # Initialize weights and apply final processing
         self.post_init()
         self.vision_encoder = self.get_vision_tower()
-        self.lm_loss_weight = 1
+        self.lm_loss_weight = .5
         self.video_loss_weight = 1
         self.info_loss_weight = 1
-        self.ref_loss_weight = 0.5
-        self.uncertainty_loss_weight = 0.1
-        self.tv_loss_weight = 0.1
+        self.ref_loss_weight = 1.5
+        self.uncertainty_loss_weight = 0.2
+        self.tv_loss_weight = 0.2
         print(f"using lm_loss_weight: {self.lm_loss_weight}, video_loss_weight: {self.video_loss_weight}, \
               info_loss_weight: {self.info_loss_weight}, ref_loss_weight: {self.ref_loss_weight}, \
                 uncertainty_loss_weight: {self.uncertainty_loss_weight}, and \

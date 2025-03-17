@@ -82,11 +82,11 @@ class LiveInferForBenchmark:
 
     # DEPRECATED
     def _call_for_response(self, video_time, query):
-        raise ValueError("Depreicated, please look at original MMDuet repository https://github.com/yellow-binary-tree/MMDuet/blob/main/test/inference.py")
+        raise ValueError("Depreicated")
 
     # DEPRECATED
     def _call_for_streaming(self):
-        raise ValueError("Depreicated, please look at original MMDuet repository https://github.com/yellow-binary-tree/MMDuet/blob/main/test/inference.py")
+        raise ValueError("Depreicated")
 
     def reset(self, ):
         self.query_queue = collections.deque()
