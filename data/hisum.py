@@ -105,7 +105,7 @@ class HiSumDataset(StreamMixIn):
                 }
         
         # s = time.time()
-        num_vids = 0
+        
         with h5py.File(h5_file, "r") as hdf:
             failed_videos = 0
             for video_id in videos:
@@ -130,6 +130,7 @@ class HiSumDataset(StreamMixIn):
                             "video_id": video_id
                         }
 
+        logger.info(f"Mr. HiSum dataset loaded {len(annotations)} out of {len(videos)} videos")
 
         return annotations
     
