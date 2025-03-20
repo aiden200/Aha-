@@ -1,9 +1,9 @@
-accelerate==0.33.0
+accelerate==1.5.2
 av==13.0.0
 bitsandbytes==0.41.0
 datasets==2.16.1
 decord==0.6.0
-deepspeed==0.15.1
+deepspeed==0.16.3
 einops==0.6.1
 fastapi==0.112.2
 ffmpeg-python==0.2.0
@@ -36,8 +36,8 @@ torch==2.1.2
 torchaudio==2.1.2
 torchvision==0.16.2
 tqdm==4.66.5
-transformers==4.44.2
+transformers==4.49.0
 wandb==0.17.9
 h5py==3.13.0
 yt-dlp==2021.12.17
-bs4
+bs4==0.0.2

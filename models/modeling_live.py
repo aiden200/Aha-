@@ -114,7 +114,8 @@ def build_live(
                 inference_mode=False,
             )
             print(f'creating lora with config: {lora_config}')
-            model = get_peft_model(model, lora_config, autocast_adapter_dtype=False)
+            # model = get_peft_model(model, lora_config, autocast_adapter_dtype=False)
+            model = get_peft_model(model, lora_config)
         model.print_trainable_parameters()
 
     else:
