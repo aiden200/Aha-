@@ -3,7 +3,9 @@ import torch.distributed as dist
 from peft import LoraConfig, get_peft_model, PeftModel
 from transformers import AutoModelForCausalLM, Cache
 from transformers.utils import logging
+from peft import prepare_model_for_kbit_training
 from transformers import LogitsProcessorList, RepetitionPenaltyLogitsProcessor
+from transformers import BitsAndBytesConfig
 
 from .tokenization_live import build_live_tokenizer_and_update_config
 from .vision_live import build_live_vision
@@ -91,12 +93,25 @@ def build_live(
     set_vision_inside: bool = False,
     attn_implementation: str = 'flash_attention_2',
     torch_dtype: str | torch.dtype = 'auto',
+    quantized_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_compute_dtype=torch.bfloat16,
+    ),
     **kwargs
 ):
+    # kwargs.pop('quantized_config', None)
+
     model = model_class.from_pretrained(
-        llm_pretrained, config=config_class.from_pretrained(llm_pretrained, **kwargs),
-        torch_dtype=torch_dtype, attn_implementation=attn_implementation,
-        device_map='cuda' if torch.cuda.device_count() == 1 or dist.is_initialized() else 'auto')
+        llm_pretrained, 
+        config=config_class.from_pretrained(llm_pretrained, **kwargs),
+        torch_dtype=torch_dtype, 
+        attn_implementation=attn_implementation,
+        device_map='cuda' if torch.cuda.device_count() == 1 or dist.is_initialized() else 'auto',
+        quantized_config=quantized_config
+        )
+    model = prepare_model_for_kbit_training(model)
     tokenizer = build_live_tokenizer_and_update_config(llm_pretrained, model.config)
     logger.warning(f"model config after update: {model.config}")
     if is_training:
@@ -114,7 +129,8 @@ def build_live(
                 inference_mode=False,
             )
             print(f'creating lora with config: {lora_config}')
-            model = get_peft_model(model, lora_config, autocast_adapter_dtype=False)
+            # model = get_peft_model(model, lora_config, autocast_adapter_dtype=False)
+            model = get_peft_model(model, lora_config)
         model.print_trainable_parameters()
 
     else:

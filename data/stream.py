@@ -223,11 +223,15 @@ class StreamMixIn(torch.utils.data.Dataset):
         # for a in self.annos:
         #     print(len(a["conversation"]))
 
+        # print("Passed Stage 1")
+
         # 2. prepare texts
         if self.augmentation:
             conversation = self.augment(conversation)
         conversation = [{"role": "system", "content": self.system_prompt}] + conversation
         text = self.tokenizer.apply_chat_template(conversation, tokenize=False, add_generation_prompt=add_generation_prompt)
+
+        # print("Passed Stage 2")
 
         # 3. learn ranges
         learn_ranges = self.tokenizer.get_learn_ranges(conversation) if not add_generation_prompt else []
@@ -236,6 +240,9 @@ class StreamMixIn(torch.utils.data.Dataset):
             num_frames_in_video = len(frames)
             num_frames_in_text = sum([turn['num_frames'] for turn in conversation if turn['role'] == 'stream'])
             assert num_frames_in_video == num_frames_in_text, f"num_frames_in_video: {num_frames_in_video}, num_frames_in_text: {num_frames_in_text}"
+
+
+        # print("Passed Stage 3")
 
         # 4. get response labels or related labels according to subclass
         # the default logic is written in this class. if do not want to learn with this label, you can override in subclass with `return None`
@@ -246,5 +253,10 @@ class StreamMixIn(torch.utils.data.Dataset):
         if not self.skip_video and relevance_labels is not None:
             assert len(relevance_labels) >= len(frames), f"len(relevance_labels): {len(relevance_labels)}, len(frames): {len(frames)}"
             relevance_labels = relevance_labels[:len(frames)]
+        
+        # print("Passed Stage 4")
+        # print(torch.cuda.memory_summary(device=torch.device('cuda:1'), abbreviated=False))
+
+       
 
         return text, frames, learn_ranges, informative_labels, relevance_labels

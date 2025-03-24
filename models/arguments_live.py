@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 from transformers import TrainingArguments
+from transformers import BitsAndBytesConfig
+import torch
 from typing import Union
 
 # @dataclass
@@ -41,13 +43,14 @@ class LiveTrainingArguments(TrainingArguments):
     vision_pretrained: str = 'google/siglip-large-patch16-384'
     lora_pretrained: str = None
     # LoRA parameters to tune over the frozen Qwen model. Majority of the params come from here
-    lora_modules: str = "model\.layers.*(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$"
-    # lora_modules: str = "model\.layers.*(down_proj)$"
+    # lora_modules: str = "model\.layers.*(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$"
+    lora_modules: str = "model\.layers.*(o_proj)$"
     lora_r: int = 16
     lora_alpha: int = 32
     # These are fully trainable. We might have to add the three heads 
     # finetune_modules: list[str] = field(default_factory=lambda: ['connector', 'mm_projector', 'response_head', 'related_head'])
-    finetune_modules: list[str] = field(default_factory=lambda: ['connector', 'mm_projector', 'lm_head', 'informative_head', 'relevance_head', 'uncertainty_head'])
+    # finetune_modules: list[str] = field(default_factory=lambda: ['connector', 'mm_projector', 'lm_head', 'informative_head', 'relevance_head', 'uncertainty_head'])
+    finetune_modules: list[str] = field(default_factory=lambda: ['informative_head', 'relevance_head', 'uncertainty_head'])
     frame_fps: float = 2
     frame_token_cls: bool = False
     frame_token_pooled: list[int] = field(default_factory=lambda: [7,7])
@@ -62,6 +65,12 @@ class LiveTrainingArguments(TrainingArguments):
     output_dir: str = 'outputs/debug'
     # new arguments
     first_n_frames_no_generate: int = 0 # We want to be mindful of first few arguments
+    quantized_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_compute_dtype=torch.bfloat16,
+    )
 
 
 @dataclass
@@ -95,7 +104,12 @@ class LiveTestArguments(LiveTrainingArguments):
     video_metadata_file: str = 'datasets/tvsum/videos_metadata.json' # the video metadata file if applicable
     uncertainty_wait_threshold: float = 0.0 # based on log variance, or 1.0 if using variance
     max_wait_frames: int = 3 # maximum frames to wait before forcing a response, no matter how high uncertainty is
-
+    quantized_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_compute_dtype=torch.bfloat16,
+    )
 
 
 def get_args_class(args_version: str):

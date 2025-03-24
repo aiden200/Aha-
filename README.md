@@ -82,6 +82,8 @@ pip install flash-attn --no-build-isolation --no-cache-dir
 pip3 install torch==2.5.1 torchvision==0.20.1 torchaudio --index-url https://download.pytorch.org/whl/cu124
 ```
 
+
+
 # Inference
 ## Download Our model
 
@@ -140,10 +142,12 @@ bash ./scripts/train.sh
 ```
 
 ## Distributed Training
-This model is very big, trained on 8 V100 GPUs, and you will probably need to utilize distributed training. [I've included instructions on how to train on the cloud, using Paperspace.](instructions/distributed_instructions.md) 
+This model is very big, trained on 8 V100 GPUs, and you will probably need to utilize distributed training. [I've included instructions on how to train on the cloud, using Paperspace.](instructions/distributed_instructions.md)
 
 # Acknowledgments
-We are building off of these projects. Our codebase is built off of the MMDuet codebase:
+This work was conducted as part of the AEOP Fellowship, with compute resources and mentorship provided by the Army Research Laboratory, West Coast (ARL-W).
+
+Our codebase is built off of the MMDuet codebase:
 - [MMDuet](https://github.com/yellow-binary-tree/MMDuet) 
 - [LLaVA-NeXT](https://github.com/LLaVA-VL/LLaVA-NeXT) 
 

@@ -15,11 +15,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class TrainerWithLossErrorCatch(Trainer):
-    def training_step(self, model, inputs):
+    def training_step(self, model, inputs, num_items_in_batch):
         try:
-            loss = super().training_step(model, inputs)
-        # if wandb and torch.distributed.get_rank() == 0:
-        #     wandb.log({"loss": loss})
+            loss = super().training_step(model, inputs, num_items_in_batch)
             return loss
         # We don't want to use this for now
         except Exception as e:
@@ -44,6 +42,7 @@ def train():
     
     
     args = parse_args('train')
+
     if torch.distributed.get_rank() == 0:
         run = wandb.init(
             entity=wandb_config['wandb']['entity'],
@@ -63,10 +62,10 @@ def train():
         rank0_print(name, param.shape, param.dtype, param.requires_grad)
 
 
-    # We load the datasets. In our case, its only tvsum. No need to change anything
+    # We load the datasets.
     train_dataset_config = json.load(open(args.dataset_config))
 
-    # Need to correct this
+
     train_dataset = build_concat_train_dataset_from_config(
         tokenizer=tokenizer, config=train_dataset_config
     )
@@ -76,13 +75,19 @@ def train():
 
     args.gradient_checkpointing_kwargs = {'use_reentrant': False}
 
-    trainer = TrainerWithLossErrorCatch(
+    # trainer = TrainerWithLossErrorCatch(
+    #     model=model, tokenizer=tokenizer,
+    #     args=args,
+    #     train_dataset=train_dataset,
+    #     data_collator=data_collator
+    # )
+    
+    trainer = Trainer(
         model=model, tokenizer=tokenizer,
         args=args,
         train_dataset=train_dataset,
         data_collator=data_collator
     )
-
     with torch.cuda.amp.autocast():
         trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
     trainer.save_model()
