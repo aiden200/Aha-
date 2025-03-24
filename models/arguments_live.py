@@ -65,12 +65,8 @@ class LiveTrainingArguments(TrainingArguments):
     output_dir: str = 'outputs/debug'
     # new arguments
     first_n_frames_no_generate: int = 0 # We want to be mindful of first few arguments
-    quantized_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_compute_dtype=torch.bfloat16,
-    )
+    quantization: bool = True
+
 
 
 @dataclass

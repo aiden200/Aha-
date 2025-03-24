@@ -68,17 +68,8 @@ class VideoHeadLlavaQwenModel(LlavaMetaModel, Qwen2Model):
 class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
     config_class = VideoHeadLiveLlavaQwenConfig
 
-    def __init__(self, config, quantized_config):
+    def __init__(self, config):
         Qwen2ForCausalLM.__init__(self, config)
-
-        if quantized_config is not None:
-            from peft import prepare_model_for_kbit_training
-            # Prepare the current model for k-bit training.
-            prepared_model = prepare_model_for_kbit_training(self)
-            # Update the current model’s state dict with the prepared model’s state.
-            self.load_state_dict(prepared_model.state_dict())
-            # Optionally store the quantized configuration for reference.
-            self.quantized_config = quantized_config
             
         config.model_type = "llava_qwen"
         config.rope_scaling = None

@@ -1,11 +1,13 @@
 import torch, os
 import torch.distributed as dist
+import torch.nn as nn
 from peft import LoraConfig, get_peft_model, PeftModel
 from transformers import AutoModelForCausalLM, Cache
 from transformers.utils import logging
 from peft import prepare_model_for_kbit_training
 from transformers import LogitsProcessorList, RepetitionPenaltyLogitsProcessor
 from transformers import BitsAndBytesConfig
+from bitsandbytes.nn import Linear4bit
 
 from .tokenization_live import build_live_tokenizer_and_update_config
 from .vision_live import build_live_vision
@@ -79,6 +81,49 @@ def fast_greedy_generate(*, model: LiveMixin, inputs_embeds: torch.Tensor, past_
     return inplace_output_ids[:, :i+1], past_key_values, generated_token_ids
 
 
+def get_submodule(model, module_path: str):
+    """Safely access nested modules like 'model.layers.0.self_attn'"""
+    parts = module_path.split('.')
+    mod = model
+    for part in parts:
+        if part.isdigit():
+            mod = mod[int(part)]
+        else:
+            mod = getattr(mod, part)
+    return mod
+
+def dequantize_target_modules(model, target_module_names, dtype):
+    for name, module in model.named_modules():
+        for target_key in target_module_names:
+            if name.endswith(target_key):
+                parent_path = ".".join(name.split(".")[:-1])
+                attr_name = name.split(".")[-1]
+
+                try:
+                    parent = get_submodule(model, parent_path)
+                except Exception as e:
+                    print(f"⚠️ Skipping {parent_path}: {e}")
+                    continue
+
+                old = getattr(parent, attr_name, None)
+
+                if not isinstance(old, Linear4bit):
+                    print(f"⚠️ Skipping {name}: Not Linear4bit (found {type(old)})")
+                    continue
+
+                print(f"🔄 Replacing {name} ({type(old)}) → nn.Linear")
+
+                new = nn.Linear(old.in_features, old.out_features, bias=old.bias is not None)
+                new.weight.data = old.weight.data.clone().to(dtype)
+                if old.bias is not None:
+                    new.bias.data = old.bias.data.clone().to(dtype)
+
+                setattr(parent, attr_name, new)
+
+    return model
+
+
+
 def build_live(
     *,
     is_training: bool,
@@ -93,25 +138,44 @@ def build_live(
     set_vision_inside: bool = False,
     attn_implementation: str = 'flash_attention_2',
     torch_dtype: str | torch.dtype = 'auto',
-    quantized_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_compute_dtype=torch.bfloat16,
-    ),
+    quantization: bool = True,
     **kwargs
 ):
-    # kwargs.pop('quantized_config', None)
 
-    model = model_class.from_pretrained(
-        llm_pretrained, 
-        config=config_class.from_pretrained(llm_pretrained, **kwargs),
-        torch_dtype=torch_dtype, 
-        attn_implementation=attn_implementation,
-        device_map='cuda' if torch.cuda.device_count() == 1 or dist.is_initialized() else 'auto',
-        quantized_config=quantized_config
+    if quantization:
+        logger.info("Quantization applied")
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            llm_int8_skip_modules=finetune_modules
         )
-    model = prepare_model_for_kbit_training(model)
+    
+        model = model_class.from_pretrained(
+            llm_pretrained, 
+            config=config_class.from_pretrained(llm_pretrained, **kwargs),
+            torch_dtype=torch_dtype, 
+            attn_implementation=attn_implementation,
+            device_map='cuda' if torch.cuda.device_count() == 1 or dist.is_initialized() else 'auto',
+            quantization_config=quantization_config
+            )
+        
+        model = prepare_model_for_kbit_training(model)
+        # print(model.get_memory_footprint())
+        # exit(0)
+        # model = dequantize_target_modules(model, target_module_names=lora_modules, dtype=torch_dtype)
+        
+
+    else:
+        model = model_class.from_pretrained(
+            llm_pretrained, 
+            config=config_class.from_pretrained(llm_pretrained, **kwargs),
+            torch_dtype=torch_dtype, 
+            attn_implementation=attn_implementation,
+            device_map='cuda' if torch.cuda.device_count() == 1 or dist.is_initialized() else 'auto',
+            )
+
     tokenizer = build_live_tokenizer_and_update_config(llm_pretrained, model.config)
     logger.warning(f"model config after update: {model.config}")
     if is_training:
