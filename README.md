@@ -50,14 +50,14 @@ cd ..
 MAX_JOBS=4 pip install flash-attn --no-build-isolation --no-cache-dir 
 ```
 
-5. Download MMDuet checkpoints from HuggingFace: [https://huggingface.co/wangyueqian/MMDuet](https://huggingface.co/wangyueqian/MMDuet) and put the files under folder `./outputs/mmduet`.
+<!-- 5. Download MMDuet checkpoints from HuggingFace: [https://huggingface.co/wangyueqian/MMDuet](https://huggingface.co/wangyueqian/MMDuet) and put the files under folder `./outputs/mmduet`.
 
 ```bash
 mkdir outputs
 cd outputs
 git clone https://huggingface.co/wangyueqian/MMDuet mmduet
 cd ..
-```
+``` -->
 
 
 ## Common Problems
@@ -109,20 +109,81 @@ cd ..
 ## Set Environment Variables
 Make a `.env` file, and store your `WANDB_API_KEY` in it. Change the variables in `configs/wandb/wandb.config` so you can monitor your model while training.
 
-## Prepare the datasets
+## Prepare the annotations
+Download the datasets folder which contains the metadata for our dataset. You can download them from our [huggingface page](https://huggingface.co/datasets/aiden200/aha-annotationsv1/tree/main). 
+
+Use the following commands:
+```
+git lfs install
+git clone https://huggingface.co/datasets/aiden200/aha-annotationsv1
+mv aha-annotationsv1/datasets .
+rm -rf aha-annotationsv1
+```
+
+This should give you a structure like this.
+
+
+```
+├── datasets
+│   ├── charades
+│   │   └── annotations
+│   │       └── test-random_prompt.json
+│   ├── coin
+│   │   └── annotations
+│   │       └── train-0.25_0.5_earlier-120s_240s.json
+│   ├── download_tools
+│   │   ├── coin_download.py
+│   │   ├── coin_files.json
+│   │   ├── hisum_download.py
+│   │   ├── mr_hisum_crawler.py
+│   │   ├── mr_hisum_metadata.csv
+│   │   └── vocabulary.csv
+│   ├── hisum
+│   │   └── annotations
+│   │       ├── mr_hisum_metadata.csv
+│   │       └── split.json
+│   ├── qvh
+│   │   └── annotations
+│   │       ├── highlight_val-random_prompt.json
+│   │       └── highlight_val_release.jsonl
+│   ├── README.md
+│   ├── shot2story
+│   │   └── annotations
+│   │       ├── dvc_train-human_anno-0.25_0.5_earlier.json
+│   │       ├── magqa_test.json
+│   │       └── magqa_train-0.25_0.5-earlier.json
+│   ├── tvsum
+│   └── youcook2
+│       └── annotations
+│           └── val-random_prompt.json
+├── assets
+├── configs
+├── data
+├── demo
+├── instructions
+├── LICENSE
+├── LLaVA_NeXT
+├── models
+├── README.md
+├── requirements.txt
+├── scripts
+├── test
+├── train.py
+└── Utils
+```
+
+
+## Prepare the data
+
 - Mr.HiSum:
-  - Prepare the `metadata.csv` and `mr_hisum.h5` following the instructions of the [official repo](https://github.com/MRHiSum/MR.HiSum).
-  - Place the `metadata.csv` file in `datasets/download_tools/` folder.
-  - Place the `mr_hisum.h5` file in `datasets/hisum/annotations` folder.
+  - Prepare the `mr_hisum.h5` file following the instructions of the [official repo](https://github.com/MRHiSum/MR.HiSum).
+  - Place the `mr_hisum.h5` file in the `datasets/hisum/annotations` folder.
   <!-- - Run the metadata generator -->
 
 - Download the videos, and link each video folder to `datasets/${DATASET_NAME}/videos`. Recommended download links for each dataset:
   - Mr.HiSum: [https://github.com/MRHiSum/MR.HiSum](https://github.com/MRHiSum/MR.HiSum).
   - Shot2Story: [https://huggingface.co/mhan/shot2story-videos](https://huggingface.co/mhan/shot2story-videos)
   - COIN: [https://coin-dataset.github.io/](https://coin-dataset.github.io/)
-  <!-- - HiREST: [https://github.com/j-min/HiREST](https://github.com/j-min/HiREST)
-  - DiDeMo: [https://github.com/LisaAnne/TemporalLanguageRelease](https://github.com/LisaAnne/TemporalLanguageRelease)
-  - QueryD: [https://www.robots.ox.ac.uk/~vgg/data/queryd/](https://www.robots.ox.ac.uk/~vgg/data/queryd/) -->
 
 
 
