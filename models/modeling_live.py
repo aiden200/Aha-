@@ -48,7 +48,16 @@ class LiveMixin(AutoModelForCausalLM):
         inputs_embeds = self.get_input_embeddings()(input_ids.clamp(max=self.vocab_size-1))
         v_mask = input_ids == self.config.v_placeholder_id
         if v_mask.any():
-            inputs_embeds[v_mask] = self.visual_embed(frames).to(inputs_embeds.dtype)
+            # inputs_embeds[v_mask] = self.visual_embed(frames).to(inputs_embeds.dtype)
+            visual_embeds = self.visual_embed(frames).to(inputs_embeds.dtype)  # [N, D]
+            B, S, D = inputs_embeds.shape
+            inputs_embeds_flat = inputs_embeds.view(-1, D)
+            v_mask_flat = (input_ids == self.config.v_placeholder_id).view(-1)  # [B * S]
+            inputs_embeds_flat_updated = inputs_embeds_flat.clone()
+            inputs_embeds_flat_updated[v_mask_flat] = visual_embeds
+            inputs_embeds = inputs_embeds_flat_updated.view(B, S, D)
+
+
         return inputs_embeds
 
 
@@ -81,46 +90,6 @@ def fast_greedy_generate(*, model: LiveMixin, inputs_embeds: torch.Tensor, past_
     return inplace_output_ids[:, :i+1], past_key_values, generated_token_ids
 
 
-def get_submodule(model, module_path: str):
-    """Safely access nested modules like 'model.layers.0.self_attn'"""
-    parts = module_path.split('.')
-    mod = model
-    for part in parts:
-        if part.isdigit():
-            mod = mod[int(part)]
-        else:
-            mod = getattr(mod, part)
-    return mod
-
-def dequantize_target_modules(model, target_module_names, dtype):
-    for name, module in model.named_modules():
-        for target_key in target_module_names:
-            if name.endswith(target_key):
-                parent_path = ".".join(name.split(".")[:-1])
-                attr_name = name.split(".")[-1]
-
-                try:
-                    parent = get_submodule(model, parent_path)
-                except Exception as e:
-                    print(f"⚠️ Skipping {parent_path}: {e}")
-                    continue
-
-                old = getattr(parent, attr_name, None)
-
-                if not isinstance(old, Linear4bit):
-                    print(f"⚠️ Skipping {name}: Not Linear4bit (found {type(old)})")
-                    continue
-
-                print(f"🔄 Replacing {name} ({type(old)}) → nn.Linear")
-
-                new = nn.Linear(old.in_features, old.out_features, bias=old.bias is not None)
-                new.weight.data = old.weight.data.clone().to(dtype)
-                if old.bias is not None:
-                    new.bias.data = old.bias.data.clone().to(dtype)
-
-                setattr(parent, attr_name, new)
-
-    return model
 
 
 
@@ -138,7 +107,7 @@ def build_live(
     set_vision_inside: bool = False,
     attn_implementation: str = 'flash_attention_2',
     torch_dtype: str | torch.dtype = 'auto',
-    quantization: bool = True,
+    quantization: bool = False,
     **kwargs
 ):
 
@@ -148,7 +117,7 @@ def build_live(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
             bnb_4bit_use_double_quant=True,
-            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_compute_dtype=torch.float32,
             llm_int8_skip_modules=finetune_modules
         )
     
@@ -162,9 +131,6 @@ def build_live(
             )
         
         model = prepare_model_for_kbit_training(model)
-        # print(model.get_memory_footprint())
-        # exit(0)
-        # model = dequantize_target_modules(model, target_module_names=lora_modules, dtype=torch_dtype)
         
 
     else:

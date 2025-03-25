@@ -88,8 +88,10 @@ def train():
         train_dataset=train_dataset,
         data_collator=data_collator
     )
-    with torch.cuda.amp.autocast():
-        trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
+
+    # I think deepspeed handles automatic mixed precision operations 
+    # with torch.cuda.amp.autocast():
+    trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
     trainer.save_model()
     run.finish()
 
