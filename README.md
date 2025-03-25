@@ -146,7 +146,6 @@ This should give you a structure like this.
 │   │   └── annotations
 │   │       ├── highlight_val-random_prompt.json
 │   │       └── highlight_val_release.jsonl
-│   ├── README.md
 │   ├── shot2story
 │   │   └── annotations
 │   │       ├── dvc_train-human_anno-0.25_0.5_earlier.json
@@ -238,18 +237,17 @@ Run `./scripts/train.sh`.
 
 When running training code for the first time, the dataset code will traverse all videos of the training dataset and stat the frame rate, duration and number of frames of the videos, and store this information in `datasets/${dataset_name}/videos_metadata.json`. This can take quite a long time.
 Considering that videos downloaded from different sources may be slightly different, in order to ensure that the videos are correctly loaded, we do not include this metadata information in our data release.
-
+``` -->
 
 # Citation
 If you find this work useful in your research, please consider citing:
 ```bibtex
-@misc{wang2024mmduet,
-      title={VideoLLM Knows When to Speak: Enhancing Time-Sensitive Video Comprehension with Video-Text Duet Interaction Format}, 
-      author={Yueqian Wang and Xiaojun Meng and Yuxuan Wang and Jianxin Liang and Jiansheng Wei and Huishuai Zhang and Dongyan Zhao},
-      year={2024},
-      eprint={2411.17991},
+@misc{chang2025aha,
+      title={Aha! – When Has a Model Seen Enough? Adaptive Video Segmentation and Highlight Detection},
+      author={Aiden Chang and Stephanie Lukin and Celso De Melo},
+      year={2025},
+      eprint={},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2411.17991}, 
+      url={https://arxiv.org/abs/},
 }
-``` -->
