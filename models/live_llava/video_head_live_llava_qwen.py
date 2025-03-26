@@ -85,10 +85,10 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         self.vision_encoder = self.get_vision_tower()
         self.lm_loss_weight = .5
         self.video_loss_weight = 1
-        self.info_loss_weight = 1
-        self.ref_loss_weight = 1.5
+        self.info_loss_weight = 2.0
+        self.ref_loss_weight = 1.0
         self.uncertainty_loss_weight = 0.2
-        self.tv_loss_weight = 0.2
+        self.tv_loss_weight = 0.1
         print(f"using lm_loss_weight: {self.lm_loss_weight}, video_loss_weight: {self.video_loss_weight}, \
               info_loss_weight: {self.info_loss_weight}, ref_loss_weight: {self.ref_loss_weight}, \
                 uncertainty_loss_weight: {self.uncertainty_loss_weight}, and \
@@ -145,9 +145,11 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         return_dict: Optional[bool] = None,
         **kwargs,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
+        # print("before joint embed")
         if inputs_embeds is None:
             inputs_embeds = self.joint_embed(input_ids, frames)
 
+        # print("before model input")
         outputs = self.model(
             attention_mask=attention_mask,
             position_ids=position_ids,
@@ -158,6 +160,8 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
+
+        # print("after model input")
 
         model_outputs = copy.copy(outputs)
         hidden_states = outputs[0]
@@ -252,8 +256,10 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         if not return_dict:
             outputs = (loss,) + outputs
             return outputs
+        
+        # print("Finished forward pass before videohead")
 
-        return VideoHeadCausalLMOutputWithPast(
+        vid_head_results = VideoHeadCausalLMOutputWithPast(
             loss=loss,
             logits=logits,
             past_key_values=model_outputs.past_key_values,
@@ -265,6 +271,10 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             relevance_logits=relevance_logits,
             uncertainty=log_variance # uncertainty
         )
+
+        # print("Finished forward pass after videohead")
+
+        return vid_head_results
 
     def generate_after_embed(self, input_ids, frames, **kwargs):
         return super().generate(inputs_embeds=self.joint_embed(input_ids, frames), **kwargs)

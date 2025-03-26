@@ -29,8 +29,8 @@ class LiveMixin(AutoModelForCausalLM):
 
     def visual_embed(self, frames: torch.Tensor):
         if hasattr(self, 'vision_encode'):
-            with torch.cuda.amp.autocast():
-                frames = self.vision_encode(self.vision_encoder, frames)
+            # with torch.cuda.amp.autocast():
+            frames = self.vision_encode(self.vision_encoder, frames)
         frames = self.connector(frames)
         if hasattr(self, 'post_projector_pooling'):
             frames = self.post_projector_pooling(frames)

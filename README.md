@@ -86,7 +86,15 @@ pip3 install torch==2.5.1 torchvision==0.20.1 torchaudio --index-url https://dow
 
 # Inference
 ## Download Our model
-
+<!-- 
+## Download pretrained Model
+- Download checkpoints from HuggingFace: (https://huggingface.co/aiden200/Aha-) and put the files under folder `./outputs/aha`
+```bash
+mkdir outputs
+cd outputs
+git clone https://huggingface.co/aiden200/Aha- aha
+cd ..
+``` -->
 
 # Evaluation
 
@@ -197,6 +205,11 @@ When running training code for the first time, the dataset code will traverse al
 
 
 ## Run the training script
+Log into wandb in order to monitor your progress
+```bash
+wandb login [YOUR_API_KEY]
+```
+Start the training process
 ```bash
 bash ./scripts/train.sh
 ```
