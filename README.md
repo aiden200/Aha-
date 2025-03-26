@@ -114,8 +114,6 @@ git clone https://huggingface.co/wangyueqian/MMDuet mmduet
 cd ..
 ``` -->
 
-## Set Environment Variables
-Make a `.env` file, and store your `WANDB_API_KEY` in it. Change the variables in `configs/wandb/wandb.config` so you can monitor your model while training.
 
 ## Prepare the annotations
 Download the datasets folder which contains the metadata for our dataset. You can download them from our [huggingface page](https://huggingface.co/datasets/aiden200/aha-annotationsv1/tree/main). 
