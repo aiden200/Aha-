@@ -196,7 +196,7 @@ Since some of these datasets (expecially Mr.HiSum) are very big, you can always 
 
 *note:* I've left a script to help the download processes at `datasets/download_tools`
 
-When running training code for the first time, the dataset code will traverse all videos of the training dataset and measure the frame rate, duration and number of frames of the videos, and store this information in `datasets/${dataset_name}/videos_metadata.json`. This can take some time.
+When running training code for the first time, the dataset code will traverse all videos of the training dataset and measure the frame rate, duration, number of frames, and the corruption status of the videos. It will store this information in `datasets/${dataset_name}/videos_metadata.json`. This can take some time, since some of these datasets are very large.
 
 - Download [paraphrase-en.gz](https://github.com/lichengunc/refer/raw/refs/heads/master/evaluation/meteor/data/paraphrase-en.gz) (59MB) which is used for dense video captioning evaluation. Put this file at `test/dvc/metrics/data/paraphrase-en.gz`
 
@@ -216,10 +216,11 @@ bash ./scripts/train.sh
 This model is very big, trained on 8 V100 GPUs, and you will probably need to utilize distributed training. [I've included instructions on how to train on the cloud, using Paperspace.](instructions/distributed_instructions.md)
 
 # Acknowledgments
-This work was conducted as part of the AEOP Fellowship, with compute resources and mentorship provided by the Army Research Laboratory, West Coast (ARL-W).
+This work was conducted as part of the author's AEOP Fellowship, with compute resources and mentorship provided by the Army Research Laboratory, West Coast (ARL-W).
 
-Our codebase is built off of the MMDuet codebase:
-- [MMDuet](https://github.com/yellow-binary-tree/MMDuet) 
+Our codebase is built on top of the VideoLLM-Online and MMDuet frameworks. The base model is derived from Qwen, which itself is an adaptation of LLaVA-NeXT:
+- [VideoLLM-online](https://github.com/showlab/VideoLLM-online)
+- [MMDuet](https://github.com/yellow-binary-tree/MMDuet)
 - [LLaVA-NeXT](https://github.com/LLaVA-VL/LLaVA-NeXT) 
 
 
