@@ -12,6 +12,13 @@ import yaml
 import os
 from dotenv import load_dotenv
 
+# Distribution imports
+from torch.distributed import init_process_group, destroy_process_group
+from torch.utils.data.distributed import DistributedSampler
+from torch.nn.parallel import DistributedDataParallel
+from torch.utils.data import DataLoader
+
+
 load_dotenv()
 
 class TrainerWithLossErrorCatch(Trainer):
@@ -26,32 +33,31 @@ class TrainerWithLossErrorCatch(Trainer):
                                 dtype=torch.float16 if self.args.fp16 else torch.bfloat16 if self.args.bf16 else torch.float32)  # dummy loss
 
 
-def rank0_print(*args):
-    if torch.distributed.get_rank() == 0:
+def rank0_print(*args, local_rank, global_rank):
+    if local_rank == 0 and global_rank == 0:
         print(*args)
 
 
-def train():
 
-    # print(torch.distributed.is_initialized())
-    # exit(0)
+def train_model(args, local_rank, global_rank):
+
+    device = torch.device("cuda")
+    print(f"GPU {local_rank} - Using device: {device}")
 
     with open("configs/wandb/wandb.config", 'r') as f:
         wandb_config = yaml.safe_load(f)
-    
-    
-    
-    args = parse_args('train')
 
-    if torch.distributed.get_rank() == 0:
+    if local_rank == 0 and global_rank == 0:
         run = wandb.init(
             entity=wandb_config['wandb']['entity'],
             project=wandb_config['wandb']['project'],
             config=wandb_config['wandb']['config']
         )
     # print(torch.distributed.is_initialized())
-    rank0_print(args)
+    rank0_print(args, local_rank=local_rank, global_rank=global_rank)
     model, tokenizer = build_model_and_tokenizer(is_training=True, **asdict(args))
+    # model = DistributedDataParallel(model, device_ids=[local_rank])
+    model.to(device)
     
     if 'llava' in args.llm_pretrained:
         image_processor = model.get_vision_tower().image_processor
@@ -59,7 +65,7 @@ def train():
         image_processor = None
 
     for name, param in model.named_parameters():
-        rank0_print(name, param.shape, param.dtype, param.requires_grad)
+        rank0_print((name, param.shape, param.dtype, param.requires_grad), local_rank=local_rank, global_rank=global_rank)
 
 
     # We load the datasets.
@@ -69,6 +75,8 @@ def train():
     train_dataset = build_concat_train_dataset_from_config(
         tokenizer=tokenizer, config=train_dataset_config
     )
+
+
 
 
     data_collator = get_data_collator(tokenizer=tokenizer, image_processor=image_processor, model_config=model.config, **asdict(args))
@@ -89,11 +97,29 @@ def train():
         data_collator=data_collator
     )
 
-    # I think deepspeed handles automatic mixed precision operations 
-    # with torch.cuda.amp.autocast():
     trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
-    trainer.save_model()
+    if global_rank == 0:
+        trainer.save_model()
     run.finish()
+
+
+def train():
+    assert torch.cuda.is_available(), "Training on CPU is not supported"
+    local_rank = int(os.environ['LOCAL_RANK'])
+    global_rank = int(os.environ['RANK'])
+    assert local_rank != -1, "LOCAL_RANK environment variable not set"
+    assert global_rank != -1, "RANK environment variable not set"
+    print(f"Global rank {global_rank}, Local Rank: {local_rank} initiated")
+    init_process_group(backend='nccl')
+
+    # print(torch.distributed.is_initialized())
+    # exit(0)
+
+    args = parse_args('train')
+
+    train_model(args, local_rank, global_rank)
+
+    destroy_process_group()
 
 if __name__ == "__main__":
     train()

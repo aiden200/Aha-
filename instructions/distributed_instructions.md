@@ -8,6 +8,34 @@ Make sure to create everything in the same region. I used `West Coast (CA1)`.
 2. Create 8x nodes of `P4000x2` (multi-GPU) with `ML-in-a-Box` as operating system
 3. Create 1 Network drive (250 GB)
 
+
+### S3 Setup
+I'm keeping my data in a AWS S3 bucket since we have around ~5TB worth of data. We want to mount a S3 bucket to our local device. We're going to use `boto3`, since we are training and streaming data 
+
+1. Start by installing s3fs
+   ```bash
+   sudo apt update
+   sudo apt install -y s3fs
+   ```
+2. Set AWS credentials
+   ```bash
+   echo ACCESS_KEY_ID:SECRET_ACCESS_KEY > ~/.passwd-s3fs
+   chmod 600 ~/.passwd-s3fs
+   ```
+3. Create a Mount point
+   ```bash
+   mkdir ~/my_s3_mount
+   ```
+4. Mount your S3 Bucket
+   ```bash
+   s3fs your-bucket-name ~/my_s3_mount -o use_path_request_style -o url=https://s3.amazonaws.com -o allow_other
+   ```
+   You can also unmount your bucket using
+   ```bash
+   fusermount -u ~/my_s3_mount
+   ```
+
+
 ### Setup
 
 Login on each machine and perform the following operations:
@@ -37,15 +65,30 @@ Login on each machine and perform the following operations:
     2. Copy the API key from the browser and paste it on the terminal
 11. Run the training command from below
 
-### Local training
+
+For each machine, perform the following operations:
+
+
+
+
+### Training
 
 Run the following command on any machine. Make sure to not run it on both, otherwise they will end up overwriting each other's checkpoints.
 
+We'll specify some terminology and instructions here:
+- A cluster is a combination of nodes. In our case we are using 1 cluster and 4 nodes.
+- A node is a machine on paperspace, which is a single machine with 1 or more GPUs + CPUs
+- `nproc_per_node` is the number of GPUs the specified node is using. In our case, we are using 2
+- `nnodes` is the number of nodes we are using. In our case, it's 4
+- `node_rank` represents the rank of the node we are using. The master node should be rank 0.
+- `rdzv_endpoint` represents the ip:port of the master node coordinating the training.
+
+For the master node, run:
+
 `torchrun --nproc_per_node=2 --nnodes=1 --rdzv_id=456 --rdzv_backend=c10d --rdzv_endpoint=127.0.0.1:48123 train.py --batch_size 8 --model_folder "/mnt/training-data/weights"`
 
-### Distributed training
 
-Run the following command on each machine (replace `IP_ADDR_MASTER_NODE` with the IP address of the master node):
+Run the following command on each slave node (all nodes excluding the master node) (replace `IP_ADDR_MASTER_NODE` with the IP address of the master node):
 
 `torchrun --nproc_per_node=2 --nnodes=2 --rdzv_id=456 --rdzv_backend=c10d --rdzv_endpoint=IP_ADDR_MASTER_NODE:48123 train.py --batch_size 8 --model_folder "/mnt/training-data/weights"`
 
