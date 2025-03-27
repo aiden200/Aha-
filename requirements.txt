@@ -8,7 +8,7 @@ einops==0.6.1
 fastapi==0.112.2
 ffmpeg-python==0.2.0
 Flask==3.0.3
-huggingface-hub==0.24.6
+huggingface-hub==0.26.0
 Jinja2==3.1.4
 matplotlib==3.9.2
 moviepy==1.0.3
