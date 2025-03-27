@@ -110,7 +110,9 @@ def train():
     assert local_rank != -1, "LOCAL_RANK environment variable not set"
     assert global_rank != -1, "RANK environment variable not set"
     print(f"Global rank {global_rank}, Local Rank: {local_rank} initiated")
-    init_process_group(backend='nccl')
+
+    # HF takes care of this
+    # init_process_group(backend='nccl')
 
     # print(torch.distributed.is_initialized())
     # exit(0)
@@ -118,8 +120,8 @@ def train():
     args = parse_args('train')
 
     train_model(args, local_rank, global_rank)
-
-    destroy_process_group()
+    # HF takes care of this
+    # destroy_process_group()
 
 if __name__ == "__main__":
     train()
