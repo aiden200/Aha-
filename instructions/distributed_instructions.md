@@ -18,52 +18,94 @@ Make sure to create everything in the same region. I used `East Coast (NY2)`. I 
 3. Create 1 Network drive (250 GB)
 
 
+### S3 Mount setup
+These are instructions if your data is in a S3 bucket.
+
+1. Login to your machine and identify your user and group-id:
+   ```bash
+   id -u #UID
+   id -g #GID
+   ```
+
+2. Install CIFS tools if not installed
+   ```bash
+   sudo apt update
+   sudo apt install cifs-utils
+   ```
+
+3. Create a local Mount Point and give access to user:
+   ```bash
+   sudo mkdir -p /mnt/training-data
+   sudo chown paperspace:paperspace /mnt/training-data
+   ```
+
+4. Install the S3 Mount application
+   ```bash
+   wget https://s3.amazonaws.com/mountpoint-s3-release/latest/x86_64/mount-s3.deb
+   sudo apt-get install -y ./mount-s3.deb
+   ```
+5. Once you've got Mountpoint for Amazon S3 installed, you can mount your Amazon S3 bucket. You'll need valid AWS credentials to access your bucket. Mountpoint will automatically use credentials from an IAM role associated with your EC2 instance, or the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables. 
+   ```bash
+   export AWS_ACCESS_KEY_ID=your_access_key
+   export AWS_SECRET_ACCESS_KEY=your_secret_key
+   export AWS_DEFAULT_REGION=us-west-1  # or whatever region your bucket is in
+   ```
+
+6. To mount your bucket, run this command, replacing `amzn-s3-demo-bucket` with the name of your bucket:
+   ```bash
+   mount-s3 --uid=UID --gid=GID amzn-s3-demo-bucket /mnt/training-data
+   ```
+
+7. Check if you can access S3:
+   ```bash
+   ls /mnt/training-data
+   ```
+
+7. When you are finished, you can unmount your bucket
+   ```bash
+   umount /mnt/training-data
+   ```
+
+8. *Optional:* Move your S3 bucket to the East Coast Region
+   ```
+   aws s3api create-bucket \
+   --bucket [NEW bucket name] \
+   --region us-east-1
+
+   aws s3 sync s3://[old bucket] s3://[new bucket]
+   ```
+   Mount new bucket
+   ```bash
+   sudo umount /mnt/training-data  # Unmount the old one (if mounted)
+   mount-s3 --uid=1000 --gid=1000 [new bucket] /mnt/training-data
+   ```   
+
 ### Paperspace Mount Setup
 We're going to transfer the local data into paperspace. To do this we are going to need to mount the network drive onto our computer and transfer the data.
 
 1. Install CIFS tools if not installed
-```bash
-sudo apt update
-sudo apt install cifs-utils
-```
-
-2. Create a local Mount Point:
-```bash
-sudo mkdir -p /mnt/paperspace
-```
-
-3. Mount the paperspace share:
-```bash
-sudo mount -t cifs //<network-address>/<share-name> /mnt/paperspace -o username=<your-username>,password=<your-password>,uid=1000,gid=1000
-```
-
-4. Copy your local data:
-```bash
-cp -r /path/to/your/local/data /mnt/paperspace/
-```
-
-1. Start by installing s3fs
    ```bash
    sudo apt update
-   sudo apt install -y s3fs
+   sudo apt install cifs-utils
    ```
-2. Set AWS credentials
+
+2. Create a local Mount Point:
    ```bash
-   echo ACCESS_KEY_ID:SECRET_ACCESS_KEY > ~/.passwd-s3fs
-   chmod 600 ~/.passwd-s3fs
+   sudo mkdir -p /mnt/paperspace
+   sudo chown paperspace:paperspace /mnt/paperspace
    ```
-3. Create a Mount point
+
+
+3. Mount the paperspace share:
    ```bash
-   mkdir ~/my_s3_mount
+   sudo mount -t cifs //<network-address>/<share-name> /mnt/paperspace -o username=<your-username>,password=<your-password>,uid=1000,gid=1000
    ```
-4. Mount your S3 Bucket
+
+4. Copy your local data:
    ```bash
-   s3fs your-bucket-name ~/my_s3_mount -o use_path_request_style -o url=https://s3.amazonaws.com -o allow_other
+   cp -r /path/to/your/local/data /mnt/paperspace/
    ```
-   You can also unmount your bucket using
-   ```bash
-   fusermount -u ~/my_s3_mount
-   ```
+
 
 
 ### Setup
@@ -77,9 +119,9 @@ perform the following operations:
 3. If you get an error about `seahorse` while installing `net-tools`, do the following:
    1. sudo rm /var/lib/dpkg/info/seahorse.list
    2. sudo apt-get install seahorse --reinstall
-4. Get each machine's private IP address using `ifconfig`
-5. Add IP and hostname mapping of all the slave nodes on `/etc/hosts` file of the master node
-6. Mount the network drive
+<!-- 4. Get each machine's private IP address using `ifconfig`
+5. Add IP and hostname mapping of all the slave nodes on `/etc/hosts` file of the master node -->
+4. Mount the network drive
    1. `sudo apt-get install smbclient`
    2. `sudo apt-get install cifs-utils`
    3. `sudo mkdir /mnt/training-data`
@@ -91,15 +133,17 @@ perform the following operations:
       1. Type the drive's password when prompted
       2. To mount the machine each time its started, open up `etc/fstab` using something like
       ```sudo vim /etc/fstab``` then add in the line `//NETWORD_DRIVE_IP/NETWORK_SHARE_NAME /mnt/training-data cifs username=NETWORK_DRIVE_USERNAME,password=NETWORK_DRIVE_PASSWORD,uid=1000,gid=1000,rw 0 0`
-7. Transfer the data into the mounted drive: 
+5. Transfer the data into the mounted drive: 
    ```
    rsync -av --progress --ignore-existing /path/to/local/videos/ paperspace@<VM_IP>:/mnt/training-data/
    ```
-8. Transfer the code base onto the machine:
+6. Transfer the code base onto the machine:
    ```
    rsync -av --progress --ignore-existing [AHA DIRECTORY] paperspace@[IP ADDR]:/home/paperspace/Documents
    ```
-9. Configure the setup on the machine
+7. Configure the setup on the machine
+   
+   **Note:**: Make sure your pip and python is pointed towards your conda environment!  
    1. Install miniconda:
       ```
       # Download Miniconda
@@ -113,24 +157,33 @@ perform the following operations:
       ~/miniconda3/bin/conda init
       source ~/.bashrc
       ```
-   3. Create a conda environment & install pytorch:
-      ```
+   3. Create a conda environment:
+      ```bash
       conda create -n aha python=3.10
       conda activate aha
-      python -m pip install torch==2.5.1 torchvision==0.20.1 torchaudio --index-url https://download.pytorch.org/whl/cu124
       ```
-   4. Verify it worked:
-      ```
-      python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.version.cuda)"
-      ```
-      You should get: `2.5.1+cu124 True 12.4`
-   5. Install packages:
+   4. Install packages:
       ```
       python -m pip install -r requirements.txt
       cd LLaVA_NeXT
       python -m pip install -e ".[train]"
       cd ..
       ```
+   5. Install pytorch (run this command before and after 4 if you get an error about the cuda driver being too old):
+      ```
+      python -m pip install torch==2.5.1 torchvision==0.20.1 torchaudio --index-url https://download.pytorch.org/whl/cu124
+      ```
+   6. Verify it worked:
+      ```
+      python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.version.cuda)"
+      ```
+      You should get: `2.5.1+cu124 True 12.4`
+   7. Install Flash attention:
+      ```bash
+      MAX_JOBS=4 python -m pip install flash-attn --no-build-isolation --no-cache-dir 
+      ```
+8. Save this configuration as a template, so you can initialize this 
+
 
      
 7. `git clone https://github.com/hkproj/pytorch-transformer-distributed`
