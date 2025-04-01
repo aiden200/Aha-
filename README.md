@@ -215,6 +215,17 @@ Log into wandb in order to monitor your progress
 ```bash
 wandb login [YOUR_API_KEY]
 ```
+
+Log into huggingface in order to save your new model weights 
+```bash
+huggingface-cli login
+```
+and update `models.arguments_live`
+```python
+push_to_hub=True,
+hub_model_id=[REPO NAME],
+```
+
 Start the training process
 ```bash
 bash ./scripts/train.sh

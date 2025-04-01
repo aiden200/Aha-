@@ -49,6 +49,7 @@ def train_model(args, local_rank, global_rank):
     with open("configs/wandb/wandb.config", 'r') as f:
         wandb_config = yaml.safe_load(f)
 
+    run=None
     if local_rank == 0 and global_rank == 0:
         run = wandb.init(
             entity=wandb_config['wandb']['entity'],
@@ -102,7 +103,16 @@ def train_model(args, local_rank, global_rank):
     trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
     if global_rank == 0:
         trainer.save_model()
-    run.finish()
+        if args.push_to_hub:
+            trainer.push_to_hub(repo_id="aiden200/aha", commit_message="Uploaded after training", blocking=True)
+
+
+    if run is not None:
+        run.finish()
+    
+    if torch.distributed.is_initialized():
+        torch.distributed.destroy_process_group()
+
 
 
 def train():
