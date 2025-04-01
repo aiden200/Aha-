@@ -1,4 +1,4 @@
-## Instructions for Cloud distributed training(Paperspace)
+## Instructions for Cloud distributed training (Paperspace)
 
 ### Terminology
 - Nodes: Defined as "machines" in paperspace. Nodes can contain multiple GPUs and CPUs
@@ -66,7 +66,7 @@ These are instructions if your data is in a S3 bucket.
    umount /mnt/training-data
    ```
 
-8. *Optional:* Move your S3 bucket to the East Coast Region
+8. *Optional but HEAVILY RECOMMENDED:* Move your S3 bucket to the East Coast Region
    ```
    aws s3api create-bucket \
    --bucket [NEW bucket name] \
@@ -79,6 +79,49 @@ These are instructions if your data is in a S3 bucket.
    sudo umount /mnt/training-data  # Unmount the old one (if mounted)
    mount-s3 --uid=1000 --gid=1000 [new bucket] /mnt/training-data
    ```   
+
+9. *Optional*: Mount S3 bucket on boot:
+   1. Create systemd service:
+      ```bash
+      sudo vim /etc/systemd/system/mount-s3.service
+      ```
+   2. Paste the following (Update information first):
+      ```bash
+      [Unit]
+      Description=Mount Amazon S3 bucket with Mountpoint
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      User=paperspace
+      ExecStart=/usr/bin/mount-s3 --foreground --uid=1000 --gid=1000 [your bucket] /mnt/training-data
+      Restart=no
+      Environment=HOME=/home/paperspace
+      Environment=AWS_ACCESS_KEY_ID=your_access_key
+      Environment=AWS_SECRET_ACCESS_KEY=your_secret_key
+      Environment=AWS_DEFAULT_REGION=us-east-1
+      WorkingDirectory=/home/paperspace
+
+      [Install]
+      WantedBy=multi-user.target
+      ```
+   3. Reload and enable the service:
+      ```bash
+      sudo systemctl daemon-reexec
+      sudo systemctl daemon-reload
+      sudo systemctl enable mount-s3.service
+      ```
+   4. Start the service:
+      ```bash
+      sudo systemctl start mount-s3.service
+      ```
+   5. Monitor status:
+      ```bash
+      sudo systemctl status mount-s3.service
+      ```
+
+
 
 ### Paperspace Mount Setup
 We're going to transfer the local data into paperspace. To do this we are going to need to mount the network drive onto our computer and transfer the data.
