@@ -61,12 +61,14 @@ These are instructions if your data is in a S3 bucket.
    ls /mnt/training-data
    ```
 
-7. When you are finished, you can unmount your bucket
+8. Change your `video_root` commands in `configs/datasets` to reflect the new data path
+
+9. When you are finished, you can unmount your bucket
    ```bash
    umount /mnt/training-data
    ```
 
-8. *Optional but HEAVILY RECOMMENDED:* Move your S3 bucket to the East Coast Region
+10. *Optional but HEAVILY RECOMMENDED:* Move your S3 bucket to the East Coast Region
    ```
    aws s3api create-bucket \
    --bucket [NEW bucket name] \
@@ -80,7 +82,7 @@ These are instructions if your data is in a S3 bucket.
    mount-s3 --uid=1000 --gid=1000 [new bucket] /mnt/training-data
    ```   
 
-9. *Optional*: Mount S3 bucket on boot:
+11. *Optional*: Mount S3 bucket on boot:
    1. Create systemd service:
       ```bash
       sudo vim /etc/systemd/system/mount-s3.service
@@ -200,11 +202,13 @@ perform the following operations:
       ~/miniconda3/bin/conda init
       source ~/.bashrc
       ```
-   3. Create a conda environment:
+   3. Create a conda environment and install cuda.:
       ```bash
       conda create -n aha python=3.10
       conda activate aha
+      conda install nvidia/label/cuda-[CUDA VERSION]::cuda
       ```
+      You can check out the [CUDA Versions here](https://anaconda.org/nvidia/cuda).
    4. Install packages:
       ```
       python -m pip install -r requirements.txt
@@ -212,6 +216,34 @@ perform the following operations:
       python -m pip install -e ".[train]"
       cd ..
       ```
+      
+      <details>
+
+      <summary>If you get a NVIDIA driver too old error, these are the upgrade instructions </summary>
+
+      Delete the current driver:
+      ```bash
+      sudo apt-get --purge remove "*nvidia*"
+      sudo apt autoremove
+      sudo reboot now
+      ```
+
+      Verify that the driver is no longer installed by running the command `nvidia-smi`
+
+
+      Reinstall the driver:
+      ```bash
+      sudo apt update
+      sudo apt upgrade
+      sudo apt install ubuntu-drivers-common
+      sudo ubuntu-drivers list
+      sudo apt install -y nvidia-driver-535 (or whatever the latest nvidia-driver-### is)
+      sudo reboot now
+      ```
+
+      Verify that the new version driver is installed by running the command `nvidia-smi`
+
+      </details>
    5. Install pytorch (run this command before and after 4 if you get an error about the cuda driver being too old):
       ```
       python -m pip install torch==2.5.1 torchvision==0.20.1 torchaudio --index-url https://download.pytorch.org/whl/cu124

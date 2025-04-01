@@ -57,7 +57,7 @@ def train_model(args, local_rank, global_rank):
     rank0_print(args, local_rank=local_rank, global_rank=global_rank)
     model, tokenizer = build_model_and_tokenizer(is_training=True, **asdict(args))
     # model = DistributedDataParallel(model, device_ids=[local_rank])
-    model.to(device)
+    # model.to(device)
     
     if 'llava' in args.llm_pretrained:
         image_processor = model.get_vision_tower().image_processor
