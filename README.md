@@ -82,6 +82,14 @@ pip install flash-attn --no-build-isolation --no-cache-dir
 pip3 install torch==2.5.1 torchvision==0.20.1 torchaudio --index-url https://download.pytorch.org/whl/cu124
 ```
 
+*Note 4:* If you want to use the CPU adam optimizer with deepspeed, you need to install it with the correct flags:
+```bash
+DS_BUILD_CPU_ADAM=1 DS_BUILD_UTILS=1 \
+pip install deepspeed \
+  --global-option="build_ext" \
+  --global-option="-j8"
+```
+
 
 
 # Inference

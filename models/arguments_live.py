@@ -65,7 +65,7 @@ class LiveTrainingArguments(TrainingArguments):
     output_dir: str = 'outputs/debug'
     # new arguments
     first_n_frames_no_generate: int = 0 # We want to be mindful of first few arguments
-    quantization: bool = True
+    quantization: bool = False
 
 
 

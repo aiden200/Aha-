@@ -40,6 +40,8 @@ def rank0_print(*args, local_rank, global_rank):
 
 
 def train_model(args, local_rank, global_rank):
+    if not os.path.exists(args.output_dir):
+        os.mkdirs(args.output_dir, exists_ok=True)
 
     device = torch.device("cuda")
     print(f"GPU {local_rank} - Using device: {device}")

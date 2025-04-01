@@ -1,10 +1,10 @@
 output_dir=outputs/test_train_output
 mkdir -p $output_dir
-export CUDA_VISIBLE_DEVICES=0,1
 
-PYTHONWARNINGS="ignore" torchrun --nproc_per_node 2 --master_port 29506 train.py --deepspeed configs/deepspeed/zero2offload.json \
+
+PYTHONWARNINGS="ignore" /home/paperspace/miniconda3/envs/aha/bin/torchrun --nproc_per_node 2 --master_port 29506 train.py --deepspeed configs/deepspeed/zero2offload.json \
     --bf16 true --tf32 true \
-    --dataset_config configs/datasets/human_test.json \
+    --dataset_config configs/datasets/paperspace_configuration.json \
     --llm_pretrained lmms-lab/llava-onevision-qwen2-7b-ov \
     --num_train_epochs 1 --per_device_train_batch_size 1 --per_device_eval_batch_size 1 \
     --gradient_accumulation_steps 16 --gradient_checkpointing true \
