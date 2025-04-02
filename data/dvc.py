@@ -92,25 +92,26 @@ if __name__ == '__main__':
     llava_config = LiveConfigMixin(frame_token_cls=True, frame_token_pooled=[3,3], frame_num_tokens=10)
     llava_tokenizer = build_live_tokenizer_and_update_config('lmms-lab/llava-onevision-qwen2-7b-ov', llava_config)
 
-    # dataset = DenseVideoCaptioningStreamDataset(
-    #     video_root='/data/shot2story/videos/release_134k_videos',
-    #     anno_file='datasets/shot2story/annotations/dvc_train-human_anno-0.25_0.5_earlier.json',
-    #     metadata_path='datasets/shot2story/release_134k_videos_metadata.json',
-    #     system_prompt='This is a system prompt.',
-    #     tokenizer=llava_tokenizer,
-    #     frame_fps=2, max_num_frames=100
-    # )
-
     dataset = DenseVideoCaptioningStreamDataset(
-        dataset_cls= "DenseVideoCaptioningStreamDataset",
-        video_root= "/data/coin/videos",
-        anno_file= "datasets/coin/annotations/train-0.25_0.5_earlier-120s_240s.json",
-        metadata_path= "datasets/coin/videos_metadata.json",
+        video_root="/mnt/training-data/shot2story",
+        anno_file='datasets/shot2story/annotations/dvc_train-human_anno-0.25_0.5_earlier.json',
+        metadata_path='datasets/shot2story/release_134k_videos_metadata.json',
         system_prompt='This is a system prompt.',
         tokenizer=llava_tokenizer,
-        frame_fps= 0.5,
-        max_num_frames= 120
+        frame_fps=2, max_num_frames=100
     )
+
+
+    # dataset = DenseVideoCaptioningStreamDataset(
+    #     dataset_cls= "DenseVideoCaptioningStreamDataset",
+    #     video_root= "/data/coin/videos",
+    #     anno_file= "datasets/coin/annotations/train-0.25_0.5_earlier-120s_240s.json",
+    #     metadata_path= "datasets/coin/videos_metadata.json",
+    #     system_prompt='This is a system prompt.',
+    #     tokenizer=llava_tokenizer,
+    #     frame_fps= 0.5,
+    #     max_num_frames= 120
+    # )
 
     print('length of the dataset:', len(dataset))
     for i in range(0, min(1000, len(dataset)), 20):
