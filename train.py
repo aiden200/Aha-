@@ -22,9 +22,11 @@ from torch.utils.data import DataLoader
 load_dotenv()
 
 class TrainerWithLossErrorCatch(Trainer):
-    def training_step(self, model, inputs, num_items_in_batch):
+    def training_step(self, model, inputs):
         try:
-            loss = super().training_step(model, inputs, num_items_in_batch)
+            loss = super().training_step(model, inputs)
+            if os.environ['RANK'] == 0:
+                wandb.log({"train_loss": loss})
             return loss
         # We don't want to use this for now
         except Exception as e:
@@ -50,8 +52,8 @@ def train_model(args, local_rank, global_rank):
         wandb_config = yaml.safe_load(f)
 
     run=None
-    if local_rank == 0 and global_rank == 0:
-        run = wandb.init(
+    if global_rank == 0:
+        wandb.init(
             entity=wandb_config['wandb']['entity'],
             project=wandb_config['wandb']['project'],
             config=wandb_config['wandb']['config']
@@ -86,25 +88,26 @@ def train_model(args, local_rank, global_rank):
 
     args.gradient_checkpointing_kwargs = {'use_reentrant': False}
 
-    # trainer = TrainerWithLossErrorCatch(
-    #     model=model, tokenizer=tokenizer,
-    #     args=args,
-    #     train_dataset=train_dataset,
-    #     data_collator=data_collator
-    # )
-    
-    trainer = Trainer(
+    trainer = TrainerWithLossErrorCatch(
         model=model, tokenizer=tokenizer,
         args=args,
         train_dataset=train_dataset,
         data_collator=data_collator
     )
+    
+    # trainer = Trainer(
+    #     model=model, tokenizer=tokenizer,
+    #     args=args,
+    #     train_dataset=train_dataset,
+    #     data_collator=data_collator
+    # )
 
     trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
     if global_rank == 0:
         trainer.save_model()
         if args.push_to_hub:
-            trainer.push_to_hub(repo_id="aiden200/aha", commit_message="Uploaded after training", blocking=True)
+            print("Saving model to huggingface")
+            trainer.push_to_hub()
 
 
     if run is not None:

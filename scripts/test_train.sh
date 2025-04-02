@@ -1,8 +1,8 @@
-output_dir=outputs/test_train_output
+output_dir=outputs/aha
 mkdir -p $output_dir
 
 
-PYTHONWARNINGS="ignore" torchrun --nproc_per_node 2 --master_port 29506 train.py --deepspeed configs/deepspeed/zero2offload.json \
+PYTHONWARNINGS="ignore" torchrun --nproc_per_node 2 --nnodes=1 --node_rank=0 --master_port 29506 train.py --deepspeed configs/deepspeed/zero2offload.json \
     --bf16 true --tf32 true \
     --dataset_config configs/datasets/paperspace_configuration.json \
     --llm_pretrained lmms-lab/llava-onevision-qwen2-7b-ov \

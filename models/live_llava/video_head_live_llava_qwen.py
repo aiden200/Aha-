@@ -16,6 +16,8 @@
 import math
 import copy
 import random
+import wandb
+import os
 from typing import List, Optional, Tuple, Union, Dict
 import torch
 import torch.nn as nn
@@ -73,11 +75,12 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             
         config.model_type = "llava_qwen"
         config.rope_scaling = None
-
+        self.global_step = 0
         self.model = VideoHeadLlavaQwenModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        # 2, because distribution over classes
         self.informative_head = nn.Linear(config.hidden_size, 2, bias=False)
-        self.relevance_head = nn.Linear(config.hidden_size, 2, bias=False)
+        self.relevance_head = nn.Linear(config.hidden_size, 1, bias=False)
         self.uncertainty_head = nn.Linear(config.hidden_size, 1, bias=False) # we predict the uncertainty of information
 
         # Initialize weights and apply final processing
@@ -224,39 +227,46 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
 
 
             # NLL loss using uncertainty; note: this is applied only on the relevance head
-            nll_loss = ((relevance_labels.flatten(0, 1).float() - relevance_logits.flatten(0, 1).float()) ** 2) / (2 * variance.flatten(0, 1))
-            nll_loss += 0.5 * log_variance.flatten(0, 1)
-            uncertainty_loss = nll_loss.mean()
+            # -100 are the mask out
+            valid_mask = relevance_labels != -100
+            nll_loss = (((relevance_labels.flatten(0, 1).float() - relevance_logits.flatten(0, 1).float())**2) / (2 * variance.flatten(0, 1)) + 0.5 * log_variance.flatten(0, 1))
+            uncertainty_loss = nll_loss[valid_mask].mean()
 
-        # merge the 2 labels together, so this loss must be calculated as all training examples contains either informative_label or relevance_label.
-        # otherwise the deepspeed training process will hang
-        # if informative_labels is not None and relevance_labels is not None:
-        #     video_labels = torch.cat([informative_labels, relevance_labels], dim=0)
-        #     video_logits = torch.cat([informative_logits, relevance_logits], dim=0)
-        #     if not (video_labels != -100).any():
-        #         video_labels[:, 0] = 0      # make sure video_loss is calculated for every example, or the deepspeed training process will hang
-        #     # video_loss = loss_fct(video_logits.flatten(0, 1), video_labels.flatten())
-        #     video_loss = loss_fct(video_logits.flatten(0, 1), video_labels.flatten().float()) # for MSE
-        #     #TODO MSE might not be applicable for information labels AND relevance labels
-        #     if not return_dict:
-        #         outputs = outputs + (video_loss,)
-
-        #     # This will replace 
-        #     nll_loss = ((video_labels - video_logits) ** 2) / (2 * variance) + 0.5 * log_variance
-        #     video_loss = nll_loss.mean()
-        # else:
-        #     video_loss = 0.
 
         ref_loss += self.tv_loss_weight * tv_loss 
 
         video_loss = self.info_loss_weight * info_loss + self.ref_loss_weight * ref_loss + self.uncertainty_loss_weight * uncertainty_loss
 
         loss = lm_loss * self.lm_loss_weight + video_loss * self.video_loss_weight
+        
+        # print("In here")
+
+        if int(os.environ['RANK']) == 0:
+            self.global_step +=1
+            # print("got in")
+            # print(f"W&B run: {wandb.run}")
+            loss_logs = {
+                "train/lm_loss": lm_loss.item() if lm_loss != 0 else None,
+                "train/info_loss": info_loss.item() if info_loss != 0 else None,
+                "train/ref_loss": ref_loss.item() if ref_loss != 0 else None,
+                "train/uncertainty_loss": uncertainty_loss.item() if uncertainty_loss != 0 else None,
+                "train/video_loss": video_loss.item() if video_loss != 0 else None,
+                "train/total_loss": loss.item(),
+            }
+
+            # Remove any `None` values
+            loss_logs = {k: v for k, v in loss_logs.items() if v is not None}
+            # print(loss_logs)
+            wandb.log(loss_logs, step=self.global_step)
+        
+
+
 
         if not return_dict:
             outputs = (loss,) + outputs
             return outputs
-        
+
+
         # print("Finished forward pass before videohead")
 
         vid_head_results = VideoHeadCausalLMOutputWithPast(
