@@ -13,17 +13,18 @@ def data_collator_with_video_labels(
     frame_num_tokens = model_config.frame_num_tokens
 
     batch = list(zip(*batch))
-    batch_text, batch_frames, batch_learn_ranges, src_batch_response_labels, src_batch_related_labels, \
+    batch_text, batch_frames, batch_learn_ranges, src_batch_informative_labels, src_batch_relevance_labels, \
         batch_sample_idx = batch
+    
     batch = tokenizer(batch_text, return_offsets_mapping=True, add_special_tokens=False, return_tensors="pt", padding=True)
 
     batch_labels = torch.full_like(batch.input_ids, LabelSmoother.ignore_index, dtype=torch.long)
-    batch_response_labels = torch.full_like(batch.input_ids, LabelSmoother.ignore_index, dtype=torch.long)
-    batch_related_labels = torch.full_like(batch.input_ids, LabelSmoother.ignore_index, dtype=torch.long)
+    batch_informative_labels = torch.full_like(batch.input_ids, LabelSmoother.ignore_index, dtype=torch.long)
+    batch_relevance_labels = torch.full_like(batch.input_ids, LabelSmoother.ignore_index, dtype=torch.long)
 
-    for text, labels, response_labels, related_labels, src_response_labels, src_related_labels, \
+    for text, labels, informative_labels, relevance_labels, src_informative_labels, src_relevance_labels, \
         input_ids, offset_mapping, learn_range in zip(
-        batch_text, batch_labels, batch_response_labels, batch_related_labels, src_batch_response_labels, src_batch_related_labels,
+        batch_text, batch_labels, batch_informative_labels, batch_relevance_labels, src_batch_informative_labels, src_batch_relevance_labels,
         batch.input_ids, batch.offset_mapping, batch_learn_ranges
     ):
         for learn_r in learn_range:
@@ -36,14 +37,14 @@ def data_collator_with_video_labels(
 
         v_placeholder_indices = torch.nonzero(input_ids == v_placeholder_id).squeeze()
         indices_to_learn = v_placeholder_indices[frame_num_tokens-1::frame_num_tokens]
-        if src_response_labels is not None:
-            response_labels[indices_to_learn] = torch.tensor(src_response_labels, dtype=torch.long)
-        if src_related_labels is not None:
-            related_labels[indices_to_learn] = torch.tensor(src_related_labels, dtype=torch.long)
+        if src_informative_labels is not None:
+            informative_labels[indices_to_learn] = torch.tensor(src_informative_labels, dtype=torch.long)
+        if src_relevance_labels is not None:
+            relevance_labels[indices_to_learn] = torch.tensor(src_relevance_labels, dtype=torch.long)
 
     batch['labels'] = batch_labels
-    batch['response_labels'] = batch_response_labels
-    batch['related_labels'] = batch_related_labels
+    batch['informative_labels'] = batch_informative_labels
+    batch['relevance_labels'] = batch_relevance_labels
     batch.pop('offset_mapping')
     batch['frames'] = torch.cat(batch_frames)
     if image_processor is not None:

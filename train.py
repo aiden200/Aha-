@@ -88,19 +88,19 @@ def train_model(args, local_rank, global_rank):
 
     args.gradient_checkpointing_kwargs = {'use_reentrant': False}
 
-    trainer = TrainerWithLossErrorCatch(
-        model=model, tokenizer=tokenizer,
-        args=args,
-        train_dataset=train_dataset,
-        data_collator=data_collator
-    )
-    
-    # trainer = Trainer(
+    # trainer = TrainerWithLossErrorCatch(
     #     model=model, tokenizer=tokenizer,
     #     args=args,
     #     train_dataset=train_dataset,
     #     data_collator=data_collator
     # )
+    
+    trainer = Trainer(
+        model=model, tokenizer=tokenizer,
+        args=args,
+        train_dataset=train_dataset,
+        data_collator=data_collator
+    )
 
     trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
     if global_rank == 0:

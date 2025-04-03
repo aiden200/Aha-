@@ -257,6 +257,6 @@ class StreamMixIn(torch.utils.data.Dataset):
         # print("Passed Stage 4")
         # print(torch.cuda.memory_summary(device=torch.device('cuda:1'), abbreviated=False))
 
-       
+
 
         return text, frames, learn_ranges, informative_labels, relevance_labels

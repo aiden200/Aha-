@@ -81,7 +81,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         # 2, because distribution over classes
         self.informative_head = nn.Linear(config.hidden_size, 2, bias=False)
         self.relevance_head = nn.Linear(config.hidden_size, 1, bias=False)
-        self.uncertainty_head = nn.Linear(config.hidden_size, 1, bias=False) # we predict the uncertainty of information
+        self.uncertainty_head = nn.Linear(config.hidden_size, 1, bias=False)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -149,6 +149,12 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         **kwargs,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         # print("before joint embed")
+
+        # print(input_ids, attention_mask, position_ids, past_key_values)
+        # print("Labels", labels, informative_labels, relevance_labels)
+        # print("Releance labels", relevance_labels)
+        # print("KWARGS", kwargs)
+        # exit(0)
         if inputs_embeds is None:
             inputs_embeds = self.joint_embed(input_ids, frames)
 
@@ -179,11 +185,12 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         
         informative_logits = self.informative_head(hidden_states_no_grad).float()
         relevance_logits = self.relevance_head(hidden_states_no_grad).float()
+        relevance_logits = torch.sigmoid(relevance_logits)
         log_variance = self.uncertainty_head(hidden_states_no_grad).float()
         variance = torch.exp(torch.clamp(log_variance, min=-6, max=2))
 
         # NOTE: all labels used here are already shifted in data collator
-        ce_loss_fct = CrossEntropyLoss()
+        ce_loss_fct = CrossEntropyLoss(ignore_index=-100)
         mse_loss_fct = MSELoss()
         loss = 0.
 
@@ -202,8 +209,13 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         uncertainty_loss = 0
         tv_loss = 0
 
+        # print("information", informative_labels.shape, informative_logits.shape)
+        # print("relevance", relevance_labels.shape, relevance_logits.shape)
+
         # Informative head: CE loss for classification 
         if informative_labels is not None:
+
+            # print("In information labels")
             if not (informative_labels != -100).any():
                 informative_labels[:, 0] = 0  # Ensure valid target for at least one example
             info_loss = ce_loss_fct(
@@ -212,40 +224,58 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             )
         # Relevance head: MSE + uncertainty (NLL) loss
         if relevance_labels is not None:
+            # print("In relevance labels")
+            valid_mask = (relevance_labels != -100)
+
+            print(relevance_logits.shape)
+            print(relevance_logits[valid_mask].shape)
+            print(relevance_logits[valid_mask].flatten(0, 1).float().shape)
+
+
             if not (relevance_labels != -100).any():
                 relevance_labels[:, 0] = 0  # make sure video_loss is calculated for every example, or the deepspeed training process will hang
             mse_loss_fct = MSELoss()
             ref_loss = mse_loss_fct(
-                relevance_logits.flatten(0, 1).float(),
-                relevance_labels.flatten(0, 1).float()
+                relevance_logits[valid_mask].flatten(0, 1).float(),
+                relevance_labels[valid_mask].flatten(0, 1).float()
             )
+
+            # -100 are the mask out
 
             # we only enforce tv loss if there is more than one point
             if relevance_logits.shape[1] > 1:
                 # Total variation loss to enforce smoothness
+                tv_mask = valid_mask[:, 1:] * valid_mask[:, :-1] # Binary 1 and 0 of which are valid
                 tv_loss = torch.mean((relevance_logits[:, 1:] - relevance_logits[:, :-1]) ** 2)
+                tv_loss = (tv_mask * tv_loss).sum() / (tv_mask.sum() + 1e-6)
 
+            # print("relevance", relevance_labels, relevance_logits)
 
             # NLL loss using uncertainty; note: this is applied only on the relevance head
-            # -100 are the mask out
-            valid_mask = relevance_labels != -100
-            nll_loss = (((relevance_labels.flatten(0, 1).float() - relevance_logits.flatten(0, 1).float())**2) / (2 * variance.flatten(0, 1)) + 0.5 * log_variance.flatten(0, 1))
+            valid_mask = valid_mask.flatten() # B * T
+
+
+            nll_loss = (((relevance_labels.flatten(0, 1).float() - relevance_logits.flatten(0, 1).float())**2) / (2 * variance.flatten(0, 1) + 1e-6) + 0.5 * log_variance.flatten(0, 1))
+            
             uncertainty_loss = nll_loss[valid_mask].mean()
 
 
-        ref_loss += self.tv_loss_weight * tv_loss 
+        ref_loss_with_smoothness = ref_loss + self.tv_loss_weight * tv_loss 
 
-        video_loss = self.info_loss_weight * info_loss + self.ref_loss_weight * ref_loss + self.uncertainty_loss_weight * uncertainty_loss
+        video_loss = self.info_loss_weight * info_loss + self.ref_loss_weight * ref_loss_with_smoothness + self.uncertainty_loss_weight * uncertainty_loss
 
         loss = lm_loss * self.lm_loss_weight + video_loss * self.video_loss_weight
         
         # print("In here")
+        # print(os.environ["RANK"])
+        
 
         if int(os.environ['RANK']) == 0:
             self.global_step +=1
             # print("got in")
             # print(f"W&B run: {wandb.run}")
             loss_logs = {
+                "train/tv_loss": tv_loss.item() if tv_loss != 0 else None,
                 "train/lm_loss": lm_loss.item() if lm_loss != 0 else None,
                 "train/info_loss": info_loss.item() if info_loss != 0 else None,
                 "train/ref_loss": ref_loss.item() if ref_loss != 0 else None,
@@ -254,6 +284,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
                 "train/total_loss": loss.item(),
             }
 
+            print(loss_logs)
             # Remove any `None` values
             loss_logs = {k: v for k, v in loss_logs.items() if v is not None}
             # print(loss_logs)
