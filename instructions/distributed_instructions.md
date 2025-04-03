@@ -14,7 +14,7 @@
 Make sure to create everything in the same region. I used `East Coast (NY2)`. I would advice to do the same, since all the powerful clusters are only available in the NY2 region.
 
 1. Create 1x Private network. Assign all machines to the private network upon creation.
-2. Create 4x nodes of `A6000x2` (multi-GPU) with `ML-in-a-Box` as operating system - make sure to select the private network created.
+2. Create 1 node of `A6000x2` (multi-GPU), 250GB as the drive, with `ML-in-a-Box` as operating system - make sure to select the private network created.
 3. Create 1 Network drive (250 GB)
 
 
@@ -69,93 +69,63 @@ These are instructions if your data is in a S3 bucket.
    ```
 
 10. *Optional but HEAVILY RECOMMENDED:* Move your S3 bucket to the East Coast Region
-   ```
-   aws s3api create-bucket \
-   --bucket [NEW bucket name] \
-   --region us-east-1
-
-   aws s3 sync s3://[old bucket] s3://[new bucket]
-   ```
-   Mount new bucket
-   ```bash
-   sudo umount /mnt/training-data  # Unmount the old one (if mounted)
-   mount-s3 --uid=1000 --gid=1000 [new bucket] /mnt/training-data
-   ```   
+      ```bash
+      aws s3api create-bucket --bucket [NEW bucket name] --region us-east-1
+      aws s3 sync s3://[old bucket] s3://[new bucket]
+      ```
+      Mount new bucket
+      ```bash
+      sudo umount /mnt/training-data  # Unmount the old one (if mounted)
+      mount-s3 --uid=1000 --gid=1000 [new bucket] /mnt/training-data
+      ```   
 
 11. *Optional*: Mount S3 bucket on boot:
-   1. Create systemd service:
-      ```bash
-      sudo vim /etc/systemd/system/mount-s3.service
-      ```
-   2. Paste the following (Update information first):
-      ```bash
-      [Unit]
-      Description=Mount Amazon S3 bucket with Mountpoint
-      After=network-online.target
-      Wants=network-online.target
+   
+      1. Create systemd service:
+         ```bash
+         sudo vim /etc/systemd/system/mount-s3.service
+         ```
+      2. Paste the following (Update information first):
+         ```bash
+         [Unit]
+         Description=Mount Amazon S3 bucket with Mountpoint
+         After=network-online.target
+         Wants=network-online.target
 
-      [Service]
-      Type=simple
-      User=paperspace
-      ExecStart=/usr/bin/mount-s3 --foreground --uid=1000 --gid=1000 [your bucket] /mnt/training-data
-      Restart=no
-      Environment=HOME=/home/paperspace
-      Environment=AWS_ACCESS_KEY_ID=your_access_key
-      Environment=AWS_SECRET_ACCESS_KEY=your_secret_key
-      Environment=AWS_DEFAULT_REGION=us-east-1
-      WorkingDirectory=/home/paperspace
+         [Service]
+         Type=simple
+         User=paperspace
+         ExecStart=/usr/bin/mount-s3 --foreground --uid=1000 --gid=1000 [your bucket] /mnt/training-data
+         Restart=no
+         Environment=HOME=/home/paperspace
+         Environment=AWS_ACCESS_KEY_ID=your_access_key
+         Environment=AWS_SECRET_ACCESS_KEY=your_secret_key
+         Environment=AWS_DEFAULT_REGION=us-east-1
+         WorkingDirectory=/home/paperspace
 
-      [Install]
-      WantedBy=multi-user.target
-      ```
-   3. Reload and enable the service:
-      ```bash
-      sudo systemctl daemon-reexec
-      sudo systemctl daemon-reload
-      sudo systemctl enable mount-s3.service
-      ```
-   4. Start the service:
-      ```bash
-      sudo systemctl start mount-s3.service
-      ```
-   5. Monitor status:
-      ```bash
-      sudo systemctl status mount-s3.service
-      ```
-
-
-
-### Paperspace Mount Setup
-We're going to transfer the local data into paperspace. To do this we are going to need to mount the network drive onto our computer and transfer the data.
-
-1. Install CIFS tools if not installed
-   ```bash
-   sudo apt update
-   sudo apt install cifs-utils
-   ```
-
-2. Create a local Mount Point:
-   ```bash
-   sudo mkdir -p /mnt/paperspace
-   sudo chown paperspace:paperspace /mnt/paperspace
-   ```
-
-
-3. Mount the paperspace share:
-   ```bash
-   sudo mount -t cifs //<network-address>/<share-name> /mnt/paperspace -o username=<your-username>,password=<your-password>,uid=1000,gid=1000
-   ```
-
-4. Copy your local data:
-   ```bash
-   cp -r /path/to/your/local/data /mnt/paperspace/
-   ```
+         [Install]
+         WantedBy=multi-user.target
+         ```
+      3. Reload and enable the service:
+         ```bash
+         sudo systemctl daemon-reexec
+         sudo systemctl daemon-reload
+         sudo systemctl enable mount-s3.service
+         ```
+      4. Start the service:
+         ```bash
+         sudo systemctl start mount-s3.service
+         ```
+      5. Monitor status:
+         ```bash
+         sudo systemctl status mount-s3.service
+         ```
 
 
 
 ### Setup
 
-Login to the first machine using `ssh paperspace@[IP addr]`. We are going to set up everything here, and create a snapshot we can use for the other 3 machines so we don't have to perform this setup again. 
+Login to the first machine using `ssh paperspace@[IP addr]`. Make sure you have your public ssh key set up on paperspace before performing this operation! We are going to set up everything on the first machine, and create a snapshot we can use for the other 3 machines so we don't have to perform this setup again. 
 
 perform the following operations:
 
@@ -166,27 +136,11 @@ perform the following operations:
    2. sudo apt-get install seahorse --reinstall
 <!-- 4. Get each machine's private IP address using `ifconfig`
 5. Add IP and hostname mapping of all the slave nodes on `/etc/hosts` file of the master node -->
-4. Mount the network drive
-   1. `sudo apt-get install smbclient`
-   2. `sudo apt-get install cifs-utils`
-   3. `sudo mkdir /mnt/training-data`
-   4. Replace the following values on the command below:
-      1. `NETWORD_DRIVE_IP` with the IP address of the network drive
-      2. `NETWORK_SHARE_NAME` with the name of the network share
-      3. `DRIVE_USERNAME` with the username of the network drive
-   5. `sudo mount -t cifs //NETWORD_DRIVE_IP/NETWORK_SHARE_NAME /mnt/training-data -o uid=1000,gid=1000,rw,user,username=NETWORK_DRIVE_USERNAME`
-      1. Type the drive's password when prompted
-      2. To mount the machine each time its started, open up `etc/fstab` using something like
-      ```sudo vim /etc/fstab``` then add in the line `//NETWORD_DRIVE_IP/NETWORK_SHARE_NAME /mnt/training-data cifs username=NETWORK_DRIVE_USERNAME,password=NETWORK_DRIVE_PASSWORD,uid=1000,gid=1000,rw 0 0`
-5. Transfer the data into the mounted drive: 
-   ```
-   rsync -av --progress --ignore-existing /path/to/local/videos/ paperspace@<VM_IP>:/mnt/training-data/
-   ```
-6. Transfer the code base onto the machine:
+4. Transfer the code base onto the machine:
    ```
    rsync -av --progress --ignore-existing [AHA DIRECTORY] paperspace@[IP ADDR]:/home/paperspace/Documents
    ```
-7. Configure the setup on the machine
+5. Configure the setup on the machine
    
    **Note:**: Make sure your pip and python is pointed towards your conda environment!  
    1. Install miniconda:
@@ -257,21 +211,16 @@ perform the following operations:
       ```bash
       MAX_JOBS=4 python -m pip install flash-attn --no-build-isolation --no-cache-dir 
       ```
-8. Save this configuration as a template, so you can initialize this 
+6. Save this configuration as a template, so you can initialize this.
+7. Go back to paperspace, spin up 3 other instances, using the same template. Remember to create these machines on the same private network, 250GB worth of disk space, and are 2xA6000 GPUs. We are now ready to perform distributed training
 
 
-     
-7. `git clone https://github.com/hkproj/pytorch-transformer-distributed`
-8. `cd pytorch-transformer-distributed`
-9. `pip install -r requirements.txt`
-10. Login on Weights & Biases
-    1. `wandb login`
-    2. Copy the API key from the browser and paste it on the terminal
-11. Run the training command from below
 
 ### Node communication setup
 
 For each machine, perform the following operation:
+
+Get each machine's private IP address using `ifconfig`
 
 Open `/etc/hosts` and paste every other machines IP addr and hostname. You can obtain the IP by running `ifconfig` and hostname with `hostname`. For example, if we had 4 nodes initialized, node 2's `etc/hosts` file should look something like this:
 
@@ -301,10 +250,48 @@ For the master node, run:
 
 `torchrun --nproc_per_node=2 --nnodes=1 --rdzv_id=456 --rdzv_backend=c10d --rdzv_endpoint=127.0.0.1:48123 train.py --batch_size 8 --model_folder "/mnt/training-data/weights"`
 
+```bash
+PYTHONWARNINGS="ignore" torchrun --nproc_per_node 2 --nnodes=2 --node_rank=0 --master_port 29506 \
+   --rdzv_id=456 --rdzv_backend=static --rdzv_endpoint=127.0.0.1:48123 \
+   train.py --deepspeed configs/deepspeed/zero2offload.json \
+    --bf16 true --tf32 true \
+    --dataset_config configs/datasets/paperspace_configuration.json \
+    --llm_pretrained lmms-lab/llava-onevision-qwen2-7b-ov \
+    --num_train_epochs 1 --per_device_train_batch_size 1 --per_device_eval_batch_size 1 \
+    --gradient_accumulation_steps 1 --gradient_checkpointing true \
+    --evaluation_strategy no --prediction_loss_only false \
+    --save_strategy steps --save_steps 500 --save_total_limit 5 \
+    --learning_rate 0.00002 --optim adamw_torch --lr_scheduler_type cosine --warmup_ratio 0.05 \
+    --dataloader_num_workers 4 \
+    --logging_steps 10 \
+    --report_to wandb \
+    --output_dir outputs/aha \
+    > outputs/aha/train.log
+```
+
 
 Run the following command on each slave node (all nodes excluding the master node) (replace `IP_ADDR_MASTER_NODE` with the IP address of the master node):
 
 `torchrun --nproc_per_node=2 --nnodes=2 --rdzv_id=456 --rdzv_backend=c10d --rdzv_endpoint=IP_ADDR_MASTER_NODE:48123 train.py --batch_size 8 --model_folder "/mnt/training-data/weights"`
+
+```bash
+PYTHONWARNINGS="ignore" torchrun --nproc_per_node 2 --nnodes=2 --node_rank=1 --master_port 29506 \
+   --rdzv_id=456 --rdzv_backend=static --rdzv_endpoint=IP_ADDR_MASTER_NODE:48123 \
+   train.py --deepspeed configs/deepspeed/zero2offload.json \
+    --bf16 true --tf32 true \
+    --dataset_config configs/datasets/paperspace_configuration.json \
+    --llm_pretrained lmms-lab/llava-onevision-qwen2-7b-ov \
+    --num_train_epochs 1 --per_device_train_batch_size 1 --per_device_eval_batch_size 1 \
+    --gradient_accumulation_steps 1 --gradient_checkpointing true \
+    --evaluation_strategy no --prediction_loss_only false \
+    --save_strategy steps --save_steps 500 --save_total_limit 5 \
+    --learning_rate 0.00002 --optim adamw_torch --lr_scheduler_type cosine --warmup_ratio 0.05 \
+    --dataloader_num_workers 4 \
+    --logging_steps 10 \
+    --report_to wandb \
+    --output_dir outputs/aha \
+    > outputs/aha/train.log
+```
 
 ### Monitoring
 
