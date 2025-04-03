@@ -1,0 +1,30 @@
+[
+    {
+        "dataset_cls": "DenseVideoCaptioningStreamDataset",
+        "video_root": "/mnt/training-data/coin",
+        "anno_file": "datasets/coin/annotations/test_train-0.25_0.5_earlier-120s_240s.json",
+        "metadata_path": "datasets/coin/videos_metadata.json",
+        "frame_fps": 0.5, "max_num_frames": 120
+    },
+    {
+        "dataset_cls": "MAGQAStreamDataset",
+        "video_root": "/mnt/training-data/shot2story",
+        "anno_file": "datasets/shot2story/annotations/test_magqa_train-0.25_0.5-earlier.json",
+        "metadata_path": "datasets/shot2story/release_134k_videos_metadata.json"
+    },
+    {
+        "dataset_cls": "DenseVideoCaptioningStreamDataset",
+        "video_root": "/mnt/training-data/shot2story",
+        "anno_file": "datasets/shot2story/annotations/test_dvc_train-human_anno-0.25_0.5_earlier.json",
+        "metadata_path": "datasets/shot2story/release_134k_videos_metadata.json"
+    },
+    {
+        "dataset_cls": "HiSumDataset",
+        "video_root": "/mnt/training-data/yt8m",
+        "anno_file": "datasets/hisum/annotations/test_split.json",
+        "metadata_path": "datasets/hisum/videos_metadata.json",
+        "hisum_h5_file": "/mnt/training-data/hisum_annotation/mr_hisum.h5",
+        "hisum_metadata": "datasets/hisum/annotations/mr_hisum_metadata.csv",
+        "frame_fps": 1
+    }
+]
