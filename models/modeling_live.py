@@ -136,10 +136,11 @@ def build_live(
     else:
         model = model_class.from_pretrained(
             llm_pretrained, 
+            low_cpu_mem_usage=False,
             config=config_class.from_pretrained(llm_pretrained, **kwargs),
             torch_dtype=torch_dtype, 
             attn_implementation=attn_implementation,
-            device_map='cuda' if torch.cuda.device_count() == 1 or dist.is_initialized() else 'auto',
+            # device_map='cuda' if torch.cuda.device_count() == 1 or dist.is_initialized() else 'auto',
             )
 
     tokenizer = build_live_tokenizer_and_update_config(llm_pretrained, model.config)
