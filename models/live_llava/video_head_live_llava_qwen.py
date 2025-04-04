@@ -209,13 +209,9 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         uncertainty_loss = 0
         tv_loss = 0
 
-        # print("information", informative_labels.shape, informative_logits.shape)
-        # print("relevance", relevance_labels.shape, relevance_logits.shape)
-
         # Informative head: CE loss for classification 
         if informative_labels is not None:
 
-            # print("In information labels")
             if not (informative_labels != -100).any():
                 informative_labels[:, 0] = 0  # Ensure valid target for at least one example
             info_loss = ce_loss_fct(
@@ -224,40 +220,48 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             )
         # Relevance head: MSE + uncertainty (NLL) loss
         if relevance_labels is not None:
-            # print("In relevance labels")
-            valid_mask = (relevance_labels != -100)
-
-            print(relevance_logits.shape)
-            print(relevance_logits[valid_mask].shape)
-            print(relevance_logits[valid_mask].flatten(0, 1).float().shape)
-
 
             if not (relevance_labels != -100).any():
                 relevance_labels[:, 0] = 0  # make sure video_loss is calculated for every example, or the deepspeed training process will hang
-            mse_loss_fct = MSELoss()
-            ref_loss = mse_loss_fct(
-                relevance_logits[valid_mask].flatten(0, 1).float(),
-                relevance_labels[valid_mask].flatten(0, 1).float()
-            )
-
-            # -100 are the mask out
-
+            
+            valid_mask = (relevance_labels != -100)
             # we only enforce tv loss if there is more than one point
+
+            relevance_logits = relevance_logits.squeeze(-1) # [B, T, 1] -> [B, T]
             if relevance_logits.shape[1] > 1:
                 # Total variation loss to enforce smoothness
-                tv_mask = valid_mask[:, 1:] * valid_mask[:, :-1] # Binary 1 and 0 of which are valid
+                tv_mask = valid_mask[:, 1:]
+                tv_mask.mul(valid_mask[:, :-1]) # Binary 1 and 0 of which are valid
                 tv_loss = torch.mean((relevance_logits[:, 1:] - relevance_logits[:, :-1]) ** 2)
                 tv_loss = (tv_mask * tv_loss).sum() / (tv_mask.sum() + 1e-6)
 
-            # print("relevance", relevance_labels, relevance_logits)
+
+            relevance_logits_flat = relevance_logits.flatten().float()
+            relevance_labels_flat = relevance_labels.flatten().float()
+            valid_mask = valid_mask.flatten()
+
+
+            relevance_logits_valid = relevance_logits_flat[valid_mask]
+            relevance_labels_valid = relevance_labels_flat[valid_mask]
+
+
+            if relevance_labels_valid.numel() > 1:
+                mse_loss_fct = MSELoss()
+                ref_loss = mse_loss_fct(
+                    relevance_logits_valid,
+                    relevance_labels_valid
+                )
+            else:
+                ref_loss = torch.tensor(0.0, device=relevance_logits.device)
+
+
+            # -100 are the mask out
 
             # NLL loss using uncertainty; note: this is applied only on the relevance head
-            valid_mask = valid_mask.flatten() # B * T
 
-
-            nll_loss = (((relevance_labels.flatten(0, 1).float() - relevance_logits.flatten(0, 1).float())**2) / (2 * variance.flatten(0, 1) + 1e-6) + 0.5 * log_variance.flatten(0, 1))
+            nll_loss = (((relevance_labels_valid - relevance_logits_valid)**2) / (2 * variance.flatten(0, 1) + 1e-6) + 0.5 * log_variance.flatten(0, 1))
             
-            uncertainty_loss = nll_loss[valid_mask].mean()
+            uncertainty_loss = nll_loss.mean()
 
 
         ref_loss_with_smoothness = ref_loss + self.tv_loss_weight * tv_loss 
@@ -266,28 +270,35 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
 
         loss = lm_loss * self.lm_loss_weight + video_loss * self.video_loss_weight
         
-        # print("In here")
-        # print(os.environ["RANK"])
+
         
 
         if int(os.environ['RANK']) == 0:
             self.global_step +=1
             # print("got in")
             # print(f"W&B run: {wandb.run}")
-            loss_logs = {
-                "train/tv_loss": tv_loss.item() if tv_loss != 0 else None,
-                "train/lm_loss": lm_loss.item() if lm_loss != 0 else None,
-                "train/info_loss": info_loss.item() if info_loss != 0 else None,
-                "train/ref_loss": ref_loss.item() if ref_loss != 0 else None,
-                "train/uncertainty_loss": uncertainty_loss.item() if uncertainty_loss != 0 else None,
-                "train/video_loss": video_loss.item() if video_loss != 0 else None,
-                "train/total_loss": loss.item(),
+            # loss_logs = {
+            #     "train/tv_loss": tv_loss.item() if tv_loss != 0 else None,
+            #     "train/lm_loss": lm_loss.item() if lm_loss != 0 else None,
+            #     "train/info_loss": info_loss.item() if info_loss != 0 else None,
+            #     "train/ref_loss": ref_loss.item() if ref_loss != 0 else None,
+            #     "train/uncertainty_loss": uncertainty_loss.item() if uncertainty_loss != 0 else None,
+            #     "train/video_loss": video_loss.item() if video_loss != 0 else None,
+            #     "train/total_loss": loss.item(),
+            # }
+
+            weighted_logs = {
+                "train/tv_loss": tv_loss.item()*self.tv_loss_weight if tv_loss != 0 else None,
+                "train/lm_loss": lm_loss.item()*self.lm_loss_weight if lm_loss != 0 else None,
+                "train/info_loss": info_loss.item()*self.info_loss_weight if info_loss != 0 else None,
+                "train/ref_loss": ref_loss.item()*self.ref_loss_weight if ref_loss != 0 else None,
+                "train/uncertainty_loss": uncertainty_loss.item()*self.uncertainty_loss_weight if uncertainty_loss != 0 else None,
+                "train/video_loss": video_loss.item()*self.video_loss_weight if video_loss != 0 else None,
+                # "train/total_loss": loss.item()
             }
 
-            print(loss_logs)
-            # Remove any `None` values
-            loss_logs = {k: v for k, v in loss_logs.items() if v is not None}
-            # print(loss_logs)
+
+            loss_logs = {k: v for k, v in weighted_logs.items() if v is not None}
             wandb.log(loss_logs, step=self.global_step)
         
 
@@ -296,9 +307,6 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         if not return_dict:
             outputs = (loss,) + outputs
             return outputs
-
-
-        # print("Finished forward pass before videohead")
 
         vid_head_results = VideoHeadCausalLMOutputWithPast(
             loss=loss,
@@ -312,8 +320,6 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             relevance_logits=relevance_logits,
             uncertainty=log_variance # uncertainty
         )
-
-        # print("Finished forward pass after videohead")
 
         return vid_head_results
 
