@@ -211,32 +211,33 @@ perform the following operations:
       ```bash
       MAX_JOBS=4 python -m pip install flash-attn --no-build-isolation --no-cache-dir 
       ```
-6. Save this configuration as a template, so you can initialize this.
-7. Go back to paperspace, spin up 3 other instances, using the same template. Remember to create these machines on the same private network, 250GB worth of disk space, and are 2xA6000 GPUs. We are now ready to perform distributed training
+6. Save this configuration as a template on paperspace, so you can initialize a machine without this whole setup. 
+7. Go back to paperspace, spin up 3 other instances, using the same template. Remember to create these machines on the same private network, 250GB worth of disk space, and using the 2xA6000 GPUs nodes. We are now ready to perform distributed training.
 
 
 
 ### Node communication setup
 
-For each machine, perform the following operation:
+For each machine, perform the following operations:
 
-Get each machine's private IP address using `ifconfig`
+1. Get each machine's private IP address using `ifconfig`.
+2. Get each machine's hostname using `hostname`
 
-Open `/etc/hosts` and paste every other machines IP addr and hostname. You can obtain the IP by running `ifconfig` and hostname with `hostname`. For example, if we had 4 nodes initialized, node 2's `etc/hosts` file should look something like this:
+3. Open `/etc/hosts` and paste every other machines IP addr and hostname. For example, if we had 4 nodes initialized, node 2's `etc/hosts` file should look something like this:
 
-```
-127.0.0.1   localhost
-127.0.1.1   HOSTNAME
-10.5.7.2    psucgene4   // Node 0
-10.4.5.6    psuchdr4    // Node 1
-10.3.4.54   dlkjfslk    // Node 3
-```
+   ```
+   127.0.0.1   localhost
+   127.0.1.1   HOSTNAME
+   10.5.7.2    psucgene4   // Node 0
+   10.4.5.6    psuchdr4    // Node 1
+   10.3.4.54   dlkjfslk    // Node 3
+   ```
 
-Obviously, the IP addr and hostname would be different. Awesome, we should be ready to train now.
+   Obviously, the IP addr and hostname would be different, this is just an example. Awesome, we should be ready to train now.
 
 ### Training
 
-Run the following command on any machine. Make sure to not run it on both, otherwise they will end up overwriting each other's checkpoints.
+Run the following command on any machine. Make sure to not run it on multiple machines, otherwise they will end up overwriting each other's checkpoints.
 
 We'll specify some terminology and instructions here:
 - A cluster is a combination of nodes. In our case we are using 1 cluster and 4 nodes.
@@ -248,17 +249,17 @@ We'll specify some terminology and instructions here:
 
 For the master node, run:
 
-`torchrun --nproc_per_node=2 --nnodes=1 --rdzv_id=456 --rdzv_backend=c10d --rdzv_endpoint=127.0.0.1:48123 train.py --batch_size 8 --model_folder "/mnt/training-data/weights"`
+
 
 ```bash
 PYTHONWARNINGS="ignore" torchrun --nproc_per_node 2 --nnodes=2 --node_rank=0 --master_port 29506 \
    --rdzv_id=456 --rdzv_backend=static --rdzv_endpoint=127.0.0.1:48123 \
-   train.py --deepspeed configs/deepspeed/zero3.json \
+   train.py --deepspeed configs/deepspeed/zero2.json \
     --bf16 true --tf32 true \
-    --dataset_config configs/datasets/paperspace_configuration.json \
+    --dataset_config configs/datasets/actual_paperspace_configuration.json \
     --llm_pretrained lmms-lab/llava-onevision-qwen2-7b-ov \
     --num_train_epochs 1 --per_device_train_batch_size 1 --per_device_eval_batch_size 1 \
-    --gradient_accumulation_steps 1 --gradient_checkpointing true \
+    --gradient_accumulation_steps 16 --gradient_checkpointing true \
     --evaluation_strategy no --prediction_loss_only false \
     --save_strategy steps --save_steps 500 --save_total_limit 5 \
     --learning_rate 0.00002 --optim adamw_torch --lr_scheduler_type cosine --warmup_ratio 0.05 \
@@ -270,19 +271,18 @@ PYTHONWARNINGS="ignore" torchrun --nproc_per_node 2 --nnodes=2 --node_rank=0 --m
 ```
 
 
-Run the following command on each slave node (all nodes excluding the master node) (replace `IP_ADDR_MASTER_NODE` with the IP address of the master node):
+Run the following command on each slave node (all nodes excluding the master node) (replace `IP_ADDR_MASTER_NODE` with the IP address of the master node) (replace NODE_RANK with the machine's node rank):
 
-`torchrun --nproc_per_node=2 --nnodes=2 --rdzv_id=456 --rdzv_backend=c10d --rdzv_endpoint=IP_ADDR_MASTER_NODE:48123 train.py --batch_size 8 --model_folder "/mnt/training-data/weights"`
 
 ```bash
-PYTHONWARNINGS="ignore" torchrun --nproc_per_node 2 --nnodes=2 --node_rank=1 --master_port 29506 \
-   --rdzv_id=456 --rdzv_backend=static --rdzv_endpoint=10.70.80.3:48123 \
-   train.py --deepspeed configs/deepspeed/zero3.json \
+PYTHONWARNINGS="ignore" torchrun --nproc_per_node 2 --nnodes=2 --node_rank=NODE_RANK --master_port 29506 \
+   --rdzv_id=456 --rdzv_backend=static --rdzv_endpoint=IP_ADDR_MASTER_NODE:48123 \
+   train.py --deepspeed configs/deepspeed/zero2.json \
     --bf16 true --tf32 true \
-    --dataset_config configs/datasets/paperspace_configuration.json \
+    --dataset_config configs/datasets/actual_paperspace_configuration.json \
     --llm_pretrained lmms-lab/llava-onevision-qwen2-7b-ov \
     --num_train_epochs 1 --per_device_train_batch_size 1 --per_device_eval_batch_size 1 \
-    --gradient_accumulation_steps 1 --gradient_checkpointing true \
+    --gradient_accumulation_steps 16 --gradient_checkpointing true \
     --evaluation_strategy no --prediction_loss_only false \
     --save_strategy steps --save_steps 500 --save_total_limit 5 \
     --learning_rate 0.00002 --optim adamw_torch --lr_scheduler_type cosine --warmup_ratio 0.05 \
