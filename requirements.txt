@@ -3,7 +3,7 @@ av==13.0.0
 bitsandbytes==0.41.0
 datasets==2.16.1
 decord==0.6.0
-deepspeed==0.16.3
+deepspeed==0.15.4
 einops==0.6.1
 fastapi==0.112.2
 ffmpeg-python==0.2.0
