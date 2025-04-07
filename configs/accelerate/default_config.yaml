@@ -1,8 +1,9 @@
 compute_environment: LOCAL_MACHINE
 debug: false
 deepspeed_config:
-  deepspeed_config_file: configs/deepspeed/zero2.json
-  zero3_init_flag: false
+  deepspeed_config_file: configs/deepspeed/zero3.json
+  zero3_init_flag: true
+  zero_stage: 3
 downcast_bf16: 'no'
 enable_cpu_affinity: false
 machine_rank: 0

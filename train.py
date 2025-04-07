@@ -17,6 +17,7 @@ from torch.distributed import init_process_group, destroy_process_group
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
+from transformers.trainer_callback import TrainerCallback
 
 
 load_dotenv()
@@ -35,9 +36,26 @@ class TrainerWithLossErrorCatch(Trainer):
                                 dtype=torch.float16 if self.args.fp16 else torch.bfloat16 if self.args.bf16 else torch.float32)  # dummy loss
 
 
+class FreezeVITCallBack(TrainerCallback):
+    def on_train_begin(self, args, state, control, **kwargs):
+        model = kwargs['model']
+        print('freezing ViT')
+        for param in model.get_vision_tower().parameters():
+            param.requires_grad = False
+        # return super().on_train_begin(args, state, control, **kwargs)
+
+
 def rank0_print(*args, local_rank, global_rank):
     if local_rank == 0 and global_rank == 0:
         print(*args)
+
+from deepspeed import zero
+
+def deepspeed_print(model, local_rank, global_rank):
+    if global_rank == 0:
+        with zero.GatheredParameters(list(model.parameters()), modifier_rank=0):
+            for name, param in model.named_parameters():
+                print(name, param.shape, param.dtype, param.requires_grad)
 
 
 
@@ -59,7 +77,7 @@ def train_model(args, local_rank, global_rank):
             config=wandb_config['wandb']['config']
         )
     # print(torch.distributed.is_initialized())
-    rank0_print(args, local_rank=local_rank, global_rank=global_rank)
+    # rank0_print(args, local_rank=local_rank, global_rank=global_rank)
     model, tokenizer = build_model_and_tokenizer(is_training=True, **asdict(args))
     # model = DistributedDataParallel(model, device_ids=[local_rank])
     # model.to(device)
@@ -69,10 +87,12 @@ def train_model(args, local_rank, global_rank):
     else:
         image_processor = None
 
-    for name, param in model.named_parameters():
-        rank0_print((name, param.shape, param.dtype, param.requires_grad), local_rank=local_rank, global_rank=global_rank)
 
+    # Deepspeed might have trouble if we access the params after partitioning
+    # for name, param in model.named_parameters():
+    #     rank0_print((name, param.shape, param.dtype, param.requires_grad), local_rank=local_rank, global_rank=global_rank)
 
+    # deepspeed_print(model, local_rank, global_rank)
     # We load the datasets.
     train_dataset_config = json.load(open(args.dataset_config))
 
@@ -99,8 +119,11 @@ def train_model(args, local_rank, global_rank):
         model=model, tokenizer=tokenizer,
         args=args,
         train_dataset=train_dataset,
-        data_collator=data_collator
+        data_collator=data_collator,
+        # callbacks=[FreezeVITCallBack()]
     )
+
+    print("Starting Training!")
 
     trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
     if global_rank == 0:
