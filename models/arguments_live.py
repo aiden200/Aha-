@@ -49,7 +49,7 @@ class LiveTrainingArguments(TrainingArguments):
     lora_alpha: int = 32
     # These are fully trainable. We might have to add the three heads 
     # finetune_modules: list[str] = field(default_factory=lambda: ['connector', 'mm_projector', 'response_head', 'related_head'])
-    finetune_modules: list[str] = field(default_factory=lambda: ['connector', 'mm_projector', 'lm_head', 'informative_head', 'relevance_head', 'uncertainty_head'])
+    finetune_modules: list[str] = field(default_factory=lambda: ['connector', 'mm_projector', 'response_head', 'related_head', 'lm_head', 'informative_head', 'relevance_head', 'uncertainty_head'])
     # finetune_modules: list[str] = field(default_factory=lambda: [])
     # finetune_modules: list[str] = field(default_factory=lambda: ['informative_head', 'relevance_head', 'uncertainty_head'])
     frame_fps: float = 2
