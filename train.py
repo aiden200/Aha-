@@ -7,6 +7,7 @@ from data import (
     build_concat_train_dataset_from_config, get_data_collator
 )
 from transformers import Trainer
+from deepspeed import zero
 import wandb
 import yaml
 import os
@@ -45,6 +46,14 @@ class FreezeVITCallBack(TrainerCallback):
         # return super().on_train_begin(args, state, control, **kwargs)
 
 
+def safe_print_model_params(model, local_rank, global_rank):
+    if global_rank == 0:  # or use `local_rank == 0 and global_rank == 0`
+        with zero.GatheredParameters(list(model.parameters()), modifier_rank=0):
+            for name, param in model.named_parameters():
+                print(f"{name}, shape={param.shape}, dtype={param.dtype}, requires_grad={param.requires_grad}")
+
+
+
 def rank0_print(*args, local_rank, global_rank):
     if local_rank == 0 and global_rank == 0:
         print(*args)
@@ -52,10 +61,12 @@ def rank0_print(*args, local_rank, global_rank):
 from deepspeed import zero
 
 def deepspeed_print(model, local_rank, global_rank):
-    if global_rank == 0:
-        with zero.GatheredParameters(list(model.parameters()), modifier_rank=0):
+    # All ranks must enter GatheredParameters
+    with zero.GatheredParameters(list(model.parameters()), modifier_rank=None):
+        if global_rank == 0:
             for name, param in model.named_parameters():
                 print(name, param.shape, param.dtype, param.requires_grad)
+
 
 
 
@@ -81,18 +92,19 @@ def train_model(args, local_rank, global_rank):
     model, tokenizer = build_model_and_tokenizer(is_training=True, **asdict(args))
     # model = DistributedDataParallel(model, device_ids=[local_rank])
     # model.to(device)
-    
     if 'llava' in args.llm_pretrained:
         image_processor = model.get_vision_tower().image_processor
     else:
         image_processor = None
+    
 
+    
 
     # Deepspeed might have trouble if we access the params after partitioning
     # for name, param in model.named_parameters():
     #     rank0_print((name, param.shape, param.dtype, param.requires_grad), local_rank=local_rank, global_rank=global_rank)
 
-    # deepspeed_print(model, local_rank, global_rank)
+    deepspeed_print(model, local_rank, global_rank)
     # We load the datasets.
     train_dataset_config = json.load(open(args.dataset_config))
 

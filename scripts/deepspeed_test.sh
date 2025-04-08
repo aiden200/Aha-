@@ -2,7 +2,8 @@ output_dir=outputs/aha
 mkdir -p $output_dir
 
 
-PYTHONWARNINGS="ignore" deepspeed --num_gpus 2 --num_nodes=1 --node_rank=0 --master_port 29506 train.py --deepspeed configs/deepspeed/zero3.json \
+PYTHONWARNINGS="ignore" deepspeed --num_gpus 2 --num_nodes=1 --node_rank=0 --master_port 29506 train.py \
+    --deepspeed configs/deepspeed/zero3.json \
     --bf16 true --tf32 true \
     --dataset_config configs/datasets/paperspace_configuration.json \
     --llm_pretrained lmms-lab/llava-onevision-qwen2-7b-ov \

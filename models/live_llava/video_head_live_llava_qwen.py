@@ -35,6 +35,8 @@ from transformers import Qwen2Config, Qwen2Model, Qwen2ForCausalLM
 
 from ..modeling_live import build_live, LiveMixin
 from ..configuration_live import VideoHeadLiveConfigMixin
+from ..vision_live import build_live_vision
+
 
 from transformers.utils import logging
 logger = logging.get_logger(__name__)
@@ -83,9 +85,16 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         self.relevance_head = nn.Linear(config.hidden_size, 1, bias=False)
         self.uncertainty_head = nn.Linear(config.hidden_size, 1, bias=False)
 
+
+
         # Initialize weights and apply final processing
+        self.vision_encoder = self.get_vision_tower()
+        # self.vision_encoder, self.vision_encode = build_live_vision(config)
+        for param in self.vision_encoder.parameters():
+            param.requires_grad = False
+
         self.post_init()
-        # self.vision_encoder = self.get_vision_tower()
+
         self.lm_loss_weight = .5
         self.video_loss_weight = 1
         self.info_loss_weight = 2.0
@@ -97,6 +106,8 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
                 info_loss_weight: {self.info_loss_weight}, ref_loss_weight: {self.ref_loss_weight}, \
                     uncertainty_loss_weight: {self.uncertainty_loss_weight}, and \
                         tv_loss_weight: {self.tv_loss_weight} for training")
+        # print("vision_encoder id:", id(model.vision_encoder))
+        # print("get_vision_tower id:", id(self.model.get_vision_tower()))
 
     def get_model(self):
         return self.model
@@ -179,10 +190,14 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         logits = self.lm_head(hidden_states).float()
 
 
+
+
         if self.config.video_head_stop_grad:
             hidden_states_no_grad = hidden_states.detach()
         else:
             hidden_states_no_grad = hidden_states
+        # print("hidden_states_no_grad:", hidden_states_no_grad.shape)
+        # print("informative_head weight:", self.informative_head.weight.shape)
         
         informative_logits = self.informative_head(hidden_states_no_grad).float()
         relevance_logits = self.relevance_head(hidden_states_no_grad).float()
@@ -364,10 +379,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
 
 def build_video_head_live_llava_qwen(**kwargs):
     model, tokenizer = build_live(config_class=VideoHeadLiveLlavaQwenConfig, model_class=VideoHeadLiveLlavaQwenForCausalLM, **kwargs)
-    # freeze vit
-    print('freezing ViT')
-    for param in model.get_vision_tower().parameters():
-        param.requires_grad = False
+
     return model, tokenizer
 
 if __name__ == '__main__':
@@ -378,3 +390,7 @@ if __name__ == '__main__':
     print(args.to_dict())
     model, tokenizer = build_video_head_live_llava_qwen(is_training=True, **args.to_dict())
     print(model.config, tokenizer)
+    for name, param in model.named_parameters():
+        if param.numel() == 0:
+            print(f"⚠️ Param with 0 elements: {name}, shape: {param.shape}, requires_grad: {param.requires_grad}")
+

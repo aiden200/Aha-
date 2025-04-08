@@ -30,6 +30,8 @@ class LiveMixin(AutoModelForCausalLM):
     def visual_embed(self, frames: torch.Tensor):
         if hasattr(self, 'vision_encode'):
             frames = self.vision_encode(self.vision_encoder, frames)
+            # print("vision_encoder id:", id(self.vision_encoder))
+            # print("vision_encode id:", id(self.vision_encode))
         frames = self.connector(frames)
         if hasattr(self, 'post_projector_pooling'):
             frames = self.post_projector_pooling(frames)
@@ -141,6 +143,9 @@ def build_live(
             attn_implementation=attn_implementation,
             # device_map='cuda' if torch.cuda.device_count() == 1 or dist.is_initialized() else 'auto',
             )
+        for head_name in ["informative_head", "relevance_head", "uncertainty_head"]:
+            for param in getattr(model, head_name).parameters():
+                param.requires_grad = True
 
     tokenizer = build_live_tokenizer_and_update_config(llm_pretrained, model.config)
     logger.warning(f"model config after update: {model.config}")

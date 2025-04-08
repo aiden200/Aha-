@@ -50,6 +50,7 @@ class LiveTrainingArguments(TrainingArguments):
     # These are fully trainable. We might have to add the three heads 
     # finetune_modules: list[str] = field(default_factory=lambda: ['connector', 'mm_projector', 'response_head', 'related_head'])
     # finetune_modules: list[str] = field(default_factory=lambda: ['connector', 'mm_projector', 'lm_head', 'informative_head', 'relevance_head', 'uncertainty_head'])
+    # finetune_modules: list[str] = field(default_factory=lambda: [])
     finetune_modules: list[str] = field(default_factory=lambda: ['informative_head', 'relevance_head', 'uncertainty_head'])
     frame_fps: float = 2
     frame_token_cls: bool = False
@@ -67,7 +68,7 @@ class LiveTrainingArguments(TrainingArguments):
     # new arguments
     first_n_frames_no_generate: int = 0 # We want to be mindful of first few arguments
     quantization: bool = False
-    push_to_hub: bool = True
+    push_to_hub: bool = False
     max_grad_norm: float = 1.0
     # hub_strategy="checkpoint",  # or "every_save"
 
