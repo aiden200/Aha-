@@ -293,15 +293,15 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             self.global_step +=1
             # print("got in")
             # print(f"W&B run: {wandb.run}")
-            # loss_logs = {
-            #     "train/tv_loss": tv_loss.item() if tv_loss != 0 else None,
-            #     "train/lm_loss": lm_loss.item() if lm_loss != 0 else None,
-            #     "train/info_loss": info_loss.item() if info_loss != 0 else None,
-            #     "train/ref_loss": ref_loss.item() if ref_loss != 0 else None,
-            #     "train/uncertainty_loss": uncertainty_loss.item() if uncertainty_loss != 0 else None,
-            #     "train/video_loss": video_loss.item() if video_loss != 0 else None,
-            #     "train/total_loss": loss.item(),
-            # }
+            loss_logs = {
+                "train/tv_loss": tv_loss.item() if tv_loss != 0 else None,
+                "train/lm_loss": lm_loss.item() if lm_loss != 0 else None,
+                "train/info_loss": info_loss.item() if info_loss != 0 else None,
+                "train/ref_loss": ref_loss.item() if ref_loss != 0 else None,
+                "train/uncertainty_loss": uncertainty_loss.item() if uncertainty_loss != 0 else None,
+                "train/video_loss": video_loss.item() if video_loss != 0 else None,
+                "train/total_loss": loss.item(),
+            }
 
             weighted_logs = {
                 "train/tv_loss": tv_loss.item()*self.tv_loss_weight if tv_loss != 0 else None,
@@ -313,6 +313,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
                 # "train/total_loss": loss.item()
             }
 
+            print(weighted_logs)
 
             loss_logs = {k: v for k, v in weighted_logs.items() if v is not None}
             wandb.log(loss_logs, step=self.global_step)
