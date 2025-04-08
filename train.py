@@ -19,6 +19,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from transformers.trainer_callback import TrainerCallback
+from peft import PeftModel
 
 
 load_dotenv()
@@ -138,11 +139,16 @@ def train_model(args, local_rank, global_rank):
     print("Starting Training!")
 
     trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
+
     if global_rank == 0:
+        # if isinstance(model, PeftModel):
+        #     model = model.merge_and_unload()
         trainer.save_model()
+        # model.save_pretrained(args.output_dir)
         if args.push_to_hub:
             print("Saving model to huggingface")
             trainer.push_to_hub()
+            # model.push_to_hub(args.hub_model_id)
 
 
     if run is not None:

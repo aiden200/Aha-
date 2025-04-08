@@ -90,8 +90,8 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         # Initialize weights and apply final processing
         self.vision_encoder = self.get_vision_tower()
         # self.vision_encoder, self.vision_encode = build_live_vision(config)
-        for param in self.vision_encoder.parameters():
-            param.requires_grad = False
+        # for param in self.vision_encoder.parameters():
+        #     param.requires_grad = False
 
         self.post_init()
 
@@ -379,6 +379,8 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
 
 def build_video_head_live_llava_qwen(**kwargs):
     model, tokenizer = build_live(config_class=VideoHeadLiveLlavaQwenConfig, model_class=VideoHeadLiveLlavaQwenForCausalLM, **kwargs)
+
+
 
     return model, tokenizer
 

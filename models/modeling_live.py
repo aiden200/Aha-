@@ -8,6 +8,7 @@ from peft import prepare_model_for_kbit_training
 from transformers import LogitsProcessorList, RepetitionPenaltyLogitsProcessor
 from transformers import BitsAndBytesConfig
 from bitsandbytes.nn import Linear4bit
+from deepspeed import zero
 
 from .tokenization_live import build_live_tokenizer_and_update_config
 from .vision_live import build_live_vision
@@ -143,10 +144,13 @@ def build_live(
             attn_implementation=attn_implementation,
             # device_map='cuda' if torch.cuda.device_count() == 1 or dist.is_initialized() else 'auto',
             )
-        for head_name in ["informative_head", "relevance_head", "uncertainty_head"]:
-            for param in getattr(model, head_name).parameters():
-                param.requires_grad = True
-
+        # with zero.GatheredParameters(list(model.parameters()), modifier_rank=None):
+        #     for name, module in model.named_modules():
+        #         for weight_name in finetune_modules:
+        #             if weight_name in name:
+        #                 for param in module.parameters():
+        #                     param.requires_grad = True
+                        
     tokenizer = build_live_tokenizer_and_update_config(llm_pretrained, model.config)
     logger.warning(f"model config after update: {model.config}")
     if is_training:
@@ -165,7 +169,13 @@ def build_live(
             )
             print(f'creating lora with config: {lora_config}')
             # model = get_peft_model(model, lora_config, autocast_adapter_dtype=False)
+            # with zero.GatheredParameters(list(model.parameters()), modifier_rank=None):
+            #     print("✅ Gathered model parameters before applying PEFT")
+            
             model = get_peft_model(model, lora_config)
+        
+        
+
         model.print_trainable_parameters()
 
     else:
