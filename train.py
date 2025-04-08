@@ -88,6 +88,7 @@ def train_model(args, local_rank, global_rank):
             project=wandb_config['wandb']['project'],
             config=wandb_config['wandb']['config']
         )
+        print("Wandb initialized")
     # print(torch.distributed.is_initialized())
     # rank0_print(args, local_rank=local_rank, global_rank=global_rank)
     model, tokenizer = build_model_and_tokenizer(is_training=True, **asdict(args))
