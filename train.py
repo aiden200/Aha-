@@ -37,6 +37,10 @@ class TrainerWithLossErrorCatch(Trainer):
             return torch.tensor(0., device=self.args.device,
                                 dtype=torch.float16 if self.args.fp16 else torch.bfloat16 if self.args.bf16 else torch.float32)  # dummy loss
 
+    def log(self, logs):
+        # This is where that dict is emitted
+        print(f"[Rank {os.environ['RANK']}] Trainer log: {logs}")
+        super().log(logs)
 
 class FreezeVITCallBack(TrainerCallback):
     def on_train_begin(self, args, state, control, **kwargs):
