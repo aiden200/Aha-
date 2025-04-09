@@ -142,7 +142,7 @@ def build_live(
             config=config_class.from_pretrained(llm_pretrained, **kwargs),
             torch_dtype=torch_dtype, 
             attn_implementation=attn_implementation,
-            device_map='cuda' if torch.cuda.device_count() == 1 or dist.is_initialized() else 'auto',
+            # device_map='cuda' if torch.cuda.device_count() == 1 or dist.is_initialized() else 'auto',
             )
         # with zero.GatheredParameters(list(model.parameters()), modifier_rank=None):
         #     for name, module in model.named_modules():
