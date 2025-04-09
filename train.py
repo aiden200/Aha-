@@ -73,7 +73,7 @@ def rank0_print(*args, local_rank, global_rank):
 
 def train_model(args, local_rank, global_rank):
     if not os.path.exists(args.output_dir):
-        os.mkdirs(args.output_dir, exists_ok=True)
+        os.makedirs(args.output_dir, exists_ok=True)
 
     device = torch.device("cuda")
     print(f"GPU {local_rank} - Using device: {device}")
@@ -145,6 +145,7 @@ def train_model(args, local_rank, global_rank):
 
     trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
 
+    print("Finished Training")
     if global_rank == 0:
         # if isinstance(model, PeftModel):
         #     model = model.merge_and_unload()
