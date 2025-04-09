@@ -35,7 +35,6 @@ from transformers import Qwen2Config, Qwen2Model, Qwen2ForCausalLM
 
 from ..modeling_live import build_live, LiveMixin
 from ..configuration_live import VideoHeadLiveConfigMixin
-from ..vision_live import build_live_vision
 
 
 from transformers.utils import logging
@@ -380,9 +379,8 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
 
 def build_video_head_live_llava_qwen(**kwargs):
     model, tokenizer = build_live(config_class=VideoHeadLiveLlavaQwenConfig, model_class=VideoHeadLiveLlavaQwenForCausalLM, **kwargs)
-
-
-
+    for param in model.get_vision_tower().parameters():
+        param.requires_grad = False
     return model, tokenizer
 
 if __name__ == '__main__':
