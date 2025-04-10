@@ -274,9 +274,20 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
 
             # NLL loss using uncertainty; note: this is applied only on the relevance head
 
-            nll_loss = (((relevance_labels_valid - relevance_logits_valid)**2) / (2 * variance.flatten(0, 1) + 1e-6) + 0.5 * log_variance.flatten(0, 1))
-            
+            min_log_var = math.log(1 / (2 * math.pi))  # ≈ -1.8379
+            max_log_var = 2.0
+            log_variance_clamped = torch.clamp(log_variance, min=min_log_var, max=max_log_var)
+            variance = torch.exp(log_variance_clamped)
+
+            residual = relevance_labels_valid - relevance_logits_valid
+            # Note: flatten variance and log_variance_clamped similarly
+            variance_valid = variance.flatten(0, 1)[valid_mask]
+            # Gaussian NLL loss
+            nll_loss = (residual ** 2) / (2 * variance_valid + 1e-6)  + 0.5 * torch.log(2 * math.pi * variance_valid)
             uncertainty_loss = nll_loss.mean()
+            uncertainty_loss = torch.clamp(uncertainty_loss, min=0)
+
+
 
 
         ref_loss_with_smoothness = ref_loss + self.tv_loss_weight * tv_loss 
@@ -289,7 +300,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         
 
         if int(os.environ['RANK']) == 0:
-            self.global_step +=1
+            # self.global_step +=1
             # print("got in")
             # print(f"W&B run: {wandb.run}")
             loss_logs = {
@@ -315,7 +326,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             print(weighted_logs)
 
             loss_logs = {k: v for k, v in weighted_logs.items() if v is not None}
-            wandb.log(loss_logs, step=self.global_step)
+            wandb.log(loss_logs)
         
 
 

@@ -23,7 +23,7 @@
         "video_root": "/mnt/training-data/yt8m",
         "anno_file": "datasets/hisum/annotations/split.json",
         "metadata_path": "datasets/hisum/videos_metadata.json",
-        "hisum_h5_file": "/mnt/training-data/hisum_annotation/mr_hisum.h5",
+        "hisum_h5_file": "datasets/hisum/annotations/mr_hisum.h5",
         "hisum_metadata": "datasets/hisum/annotations/mr_hisum_metadata.csv",
         "frame_fps": 1
     }
