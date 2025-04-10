@@ -68,7 +68,7 @@ class HumanIntuitionDataset(StreamMixIn):
         annotations = {}
         with open(anno_path, 'r', newline='') as file:
             reader = csv.reader(file, delimiter='\t')
-            for row in reader:
+            for row in tqdm(reader):
                 video_id = row[0]
                 category_code = row[1]
                 importance_scores = np.array(list(map(int, row[2].split(','))), dtype=np.float64)
