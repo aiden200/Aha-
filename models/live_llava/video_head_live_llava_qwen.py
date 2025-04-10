@@ -84,6 +84,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         self.relevance_head = nn.Linear(config.hidden_size, 1, bias=False)
         self.uncertainty_head = nn.Linear(config.hidden_size, 1, bias=False)
 
+        self.post_init()
 
 
         # Initialize weights and apply final processing
@@ -92,7 +93,6 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         # for param in self.vision_encoder.parameters():
         #     param.requires_grad = False
 
-        self.post_init()
 
         self.lm_loss_weight = .5
         self.video_loss_weight = 1
