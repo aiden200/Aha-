@@ -69,7 +69,6 @@ class StreamMixIn(torch.utils.data.Dataset):
             self.captions = None
         if hisum_h5_file:
             self.hisum_h5_file = hisum_h5_file
-            # print(hisum_h5_file)
         else:
             self.hisum_h5_file = None
         if hisum_metadata:
@@ -96,7 +95,7 @@ class StreamMixIn(torch.utils.data.Dataset):
         captions = {}
         with open(caption_path, 'r', newline='') as file:
             reader = csv.reader(file, delimiter='\t')
-            next(reader)  # Skip the header row
+            next(reader)  
             for row in reader:
                 vid_category_code, vid_id, caption, url, length = row
                 captions[vid_id] = {
@@ -147,8 +146,6 @@ class StreamMixIn(torch.utils.data.Dataset):
 
     def load_video(self, file):
         video_metadata = self.metadata[file]
-        # load the frames, and downsample to self.frame_fps
-        # print(video_metadata)
         cap = cv2.VideoCapture(video_metadata['path'])
 
         num_frames_total = math.floor(video_metadata['duration'] * self.frame_fps)
@@ -200,7 +197,6 @@ class StreamMixIn(torch.utils.data.Dataset):
 
     def __getitem__(self, *, conversation: list[dict], load_ranges: dict[str, range] | torch.Tensor = None, add_generation_prompt=False, **kwargs):
         # 1. load videos
-        # print(load_ranges)
         if self.skip_video:
             frames = torch.tensor([])
         elif isinstance(load_ranges, torch.Tensor):
@@ -209,21 +205,10 @@ class StreamMixIn(torch.utils.data.Dataset):
             conversation, load_ranges = self.max_frames_clip(conversation, load_ranges, self.max_num_frames)
             # after max_frames_clip, sometimes there may be no conversation left due to the conversations are too late.
             # we also need to keep this kind of data, as no conversation can also be a real-time situation
-            # ranges = []
-            # for path, ranger in load_ranges.items():
-            #     # print(path, ranger)
-            #     loaded_video = self.load_video(path)[ranger]
-            #     if loaded_video:
-            #         ranges.append(loaded_video)
             ranges = [self.load_video(path)[ranger] for path, ranger in load_ranges.items()]
             frames = torch.cat(ranges)
         else:
             frames = torch.tensor([])
-
-        # for a in self.annos:
-        #     print(len(a["conversation"]))
-
-        # print("Passed Stage 1")
 
         # 2. prepare texts
         if self.augmentation:
@@ -231,7 +216,6 @@ class StreamMixIn(torch.utils.data.Dataset):
         conversation = [{"role": "system", "content": self.system_prompt}] + conversation
         text = self.tokenizer.apply_chat_template(conversation, tokenize=False, add_generation_prompt=add_generation_prompt)
 
-        # print("Passed Stage 2")
 
         # 3. learn ranges
         learn_ranges = self.tokenizer.get_learn_ranges(conversation) if not add_generation_prompt else []
@@ -241,8 +225,6 @@ class StreamMixIn(torch.utils.data.Dataset):
             num_frames_in_text = sum([turn['num_frames'] for turn in conversation if turn['role'] == 'stream'])
             assert num_frames_in_video == num_frames_in_text, f"num_frames_in_video: {num_frames_in_video}, num_frames_in_text: {num_frames_in_text}"
 
-
-        # print("Passed Stage 3")
 
         # 4. get response labels or related labels according to subclass
         # the default logic is written in this class. if do not want to learn with this label, you can override in subclass with `return None`
@@ -255,8 +237,5 @@ class StreamMixIn(torch.utils.data.Dataset):
             relevance_labels = relevance_labels[:len(frames)]
         
         # print("Passed Stage 4")
-        # print(torch.cuda.memory_summary(device=torch.device('cuda:1'), abbreviated=False))
-
-
 
         return text, frames, learn_ranges, informative_labels, relevance_labels

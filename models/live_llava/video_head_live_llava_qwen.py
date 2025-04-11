@@ -79,19 +79,13 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         self.global_step = 0
         self.model = VideoHeadLlavaQwenModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-        # 2, because distribution over classes
+
         self.informative_head = nn.Linear(config.hidden_size, 2, bias=False)
         self.relevance_head = nn.Linear(config.hidden_size, 1, bias=False)
         self.uncertainty_head = nn.Linear(config.hidden_size, 1, bias=False)
 
         self.post_init()
-
-
-        # Initialize weights and apply final processing
         self.vision_encoder = self.get_vision_tower()
-        # self.vision_encoder, self.vision_encode = build_live_vision(config)
-        # for param in self.vision_encoder.parameters():
-        #     param.requires_grad = False
 
 
         self.lm_loss_weight = .5
@@ -105,8 +99,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
                 info_loss_weight: {self.info_loss_weight}, ref_loss_weight: {self.ref_loss_weight}, \
                     uncertainty_loss_weight: {self.uncertainty_loss_weight}, and \
                         tv_loss_weight: {self.tv_loss_weight} for training")
-        # print("vision_encoder id:", id(model.vision_encoder))
-        # print("get_vision_tower id:", id(self.model.get_vision_tower()))
+
 
     def get_model(self):
         return self.model
@@ -159,17 +152,10 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         return_dict: Optional[bool] = None,
         **kwargs,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
-        # print("before joint embed")
 
-        # print(input_ids, attention_mask, position_ids, past_key_values)
-        # print("Labels", labels, informative_labels, relevance_labels)
-        # print("Releance labels", relevance_labels)
-        # print("KWARGS", kwargs)
-        # exit(0)
         if inputs_embeds is None:
             inputs_embeds = self.joint_embed(input_ids, frames)
 
-        # print("before model input")
         outputs = self.model(
             attention_mask=attention_mask,
             position_ids=position_ids,
@@ -181,7 +167,6 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             return_dict=return_dict,
         )
 
-        # print("after model input")
 
         model_outputs = copy.copy(outputs)
         hidden_states = outputs[0]
@@ -195,8 +180,6 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             hidden_states_no_grad = hidden_states.detach()
         else:
             hidden_states_no_grad = hidden_states
-        # print("hidden_states_no_grad:", hidden_states_no_grad.shape)
-        # print("informative_head weight:", self.informative_head.weight.shape)
         
         informative_logits = self.informative_head(hidden_states_no_grad).float()
         relevance_logits = self.relevance_head(hidden_states_no_grad).float()
@@ -230,7 +213,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             if not (informative_labels != -100).any():
                 informative_labels[:, 0] = 0  # Ensure valid target for at least one example
             info_loss = ce_loss_fct(
-                informative_logits.flatten(0, 1), # merge batch dimension and frame
+                informative_logits.flatten(0, 1), 
                 informative_labels.flatten(0, 1)
             )
         # Relevance head: MSE + uncertainty (NLL) loss
@@ -270,10 +253,6 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
                 ref_loss = torch.tensor(0.0, device=relevance_logits.device)
 
 
-            # -100 are the mask out
-
-            # NLL loss using uncertainty; note: this is applied only on the relevance head
-
             min_log_var = math.log(1 / (2 * math.pi))  # ≈ -1.8379
             max_log_var = 2.0
             log_variance_clamped = torch.clamp(log_variance, min=min_log_var, max=max_log_var)
@@ -300,9 +279,6 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         
 
         if int(os.environ['RANK']) == 0:
-            # self.global_step +=1
-            # print("got in")
-            # print(f"W&B run: {wandb.run}")
             loss_logs = {
                 "train/tv_loss": tv_loss.item() if tv_loss != 0 else None,
                 "train/lm_loss": lm_loss.item() if lm_loss != 0 else None,

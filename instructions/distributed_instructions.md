@@ -259,7 +259,7 @@ PYTHONWARNINGS="ignore" torchrun --nproc_per_node 2 --nnodes=2 --node_rank=0 --m
     --dataset_config configs/datasets/actual_paperspace_configuration.json \
     --llm_pretrained lmms-lab/llava-onevision-qwen2-7b-ov \
     --num_train_epochs 1 --per_device_train_batch_size 1 --per_device_eval_batch_size 1 \
-    --gradient_accumulation_steps 16 --gradient_checkpointing true \
+    --gradient_accumulation_steps 8 --gradient_checkpointing true \
     --evaluation_strategy no --prediction_loss_only false \
     --save_strategy steps --save_steps 500 --save_total_limit 5 \
     --learning_rate 0.00002 --optim adamw_torch --lr_scheduler_type cosine --warmup_ratio 0.05 \
@@ -276,18 +276,18 @@ Run the following command on each slave node (all nodes excluding the master nod
 
 ```bash
 PYTHONWARNINGS="ignore" torchrun --nproc_per_node 2 --nnodes=2 --node_rank=1 --master_port 29506 \
-   --rdzv_id=456 --rdzv_backend=static --rdzv_endpoint=10.70.80.3:48123 \
+   --rdzv_id=456 --rdzv_backend=static --rdzv_endpoint=10.70.80.4:48123 \
    train.py --deepspeed configs/deepspeed/zero2.json \
     --bf16 true --tf32 true \
     --dataset_config configs/datasets/actual_paperspace_configuration.json \
     --llm_pretrained lmms-lab/llava-onevision-qwen2-7b-ov \
     --num_train_epochs 1 --per_device_train_batch_size 1 --per_device_eval_batch_size 1 \
-    --gradient_accumulation_steps 16 --gradient_checkpointing true \
+    --gradient_accumulation_steps 8 --gradient_checkpointing true \
     --evaluation_strategy no --prediction_loss_only false \
-    --save_strategy steps --save_steps 500 --save_total_limit 5 \
+    --save_strategy steps --save_steps 100 --save_total_limit 5 \
     --learning_rate 0.00002 --optim adamw_torch --lr_scheduler_type cosine --warmup_ratio 0.05 \
     --dataloader_num_workers 4 \
-    --logging_steps 10 \
+    --logging_steps 1 \
     --report_to wandb \
     --output_dir outputs/aha \
     > outputs/aha/train.log

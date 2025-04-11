@@ -4,31 +4,6 @@ from transformers import BitsAndBytesConfig
 import torch
 from typing import Union
 
-# @dataclass
-# class LiveTrainingArguments(TrainingArguments):
-#     live_version: str = 'live1+'
-#     dataset_config: str = None
-#     stream_loss_weight: float = 1.0
-#     llm_pretrained: str = 'lmms-lab/llava-onevision-qwen2-7b-ov'
-#     vision_pretrained: str = 'google/siglip-large-patch16-384'
-#     lora_pretrained: str = None
-#     lora_modules: str = "model\.layers.*(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$"
-#     lora_r: int = 16
-#     lora_alpha: int = 32
-#     finetune_modules: list[str] = field(default_factory=lambda: ['connector', 'mm_projector', 'response_head', 'related_head'])
-#     frame_fps: float = 2
-#     frame_token_cls: bool = False
-#     frame_token_pooled: list[int] = field(default_factory=lambda: [7,7])
-#     frame_num_tokens: int = 49
-#     video_pooling_stride: int = 4
-#     frame_resolution: int = 384
-#     embed_mark: str = '2fps_384_1+3x3'
-#     v_placeholder: str = '<image>'
-#     max_num_frames: int = 100
-#     augmentation: bool = False
-#     attn_implementation: str = 'flash_attention_2'
-#     output_dir: str = 'outputs/debug'
-
 
 @dataclass
 class LiveTrainingArguments(TrainingArguments):
@@ -42,16 +17,10 @@ class LiveTrainingArguments(TrainingArguments):
     llm_pretrained: str = 'lmms-lab/llava-onevision-qwen2-7b-ov'
     vision_pretrained: str = 'google/siglip-large-patch16-384'
     lora_pretrained: str = None
-    # LoRA parameters to tune over the frozen Qwen model. Majority of the params come from here
     lora_modules: str = "model\.layers.*(q_proj|k_proj|v_proj|gate_proj)$"
-    # lora_modules: str = "model\.layers.*(o_proj)$"
     lora_r: int = 8
     lora_alpha: int = 16
-    # These are fully trainable. We might have to add the three heads 
-    # finetune_modules: list[str] = field(default_factory=lambda: ['connector', 'mm_projector', 'response_head', 'related_head'])
     finetune_modules: list[str] = field(default_factory=lambda: ['connector', 'mm_projector', 'response_head', 'lm_head', 'informative_head', 'relevance_head', 'uncertainty_head'])
-    #finetune_modules: list[str] = field(default_factory=lambda: [])
-    #finetune_modules: list[str] = field(default_factory=lambda: ['informative_head', 'relevance_head', 'uncertainty_head'])
     frame_fps: float = 2
     frame_token_cls: bool = False
     frame_token_pooled: list[int] = field(default_factory=lambda: [7,7])
@@ -65,12 +34,11 @@ class LiveTrainingArguments(TrainingArguments):
     augmentation: bool = False
     attn_implementation: str = 'flash_attention_2'
     output_dir: str = 'outputs/debug'
-    # new arguments
+
     first_n_frames_no_generate: int = 0 # We want to be mindful of first few arguments
     quantization: bool = False
     push_to_hub: bool = True
     max_grad_norm: float = 1.0
-    # hub_strategy="checkpoint",  # or "every_save"
 
 
 

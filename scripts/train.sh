@@ -15,7 +15,7 @@ PYTHONWARNINGS="ignore" torchrun --nproc_per_node 4 --master_port 29506 train.py
     --dataloader_num_workers 4 \
     --logging_steps 1 \
     --report_to wandb \
-    --resume_from_checkpoint outputs/aha/checkpoint-375 \
+    --resume_from_checkpoint outputs/aha/checkpoint-650 \
     --output_dir $output_dir \
     > $output_dir/train.log
 

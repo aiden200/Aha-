@@ -55,7 +55,6 @@ class HiSumDataset(StreamMixIn):
                 continue
             if not self.metadata[video_uid]["valid"]:
                 logger.warning(f"Video {video_uid} not loaded, possibly corrupted")
-                # print("Failed video")
                 continue
             duration = self.metadata[video_uid]['duration']
             conversation, current_frame = list(), 0
@@ -119,7 +118,6 @@ class HiSumDataset(StreamMixIn):
                     if video_filepath in all_files:
                         success_vids += 1
                         importance_scores = list(hdf[video_id]["gtscore"])
-                        # importance_scores = [0]
                         categories = video_info[video_id]["categories"]
                         caption = video_info[video_id]["caption"]
                         video_uid = video_info[video_id]["youtube_id"]
@@ -147,23 +145,18 @@ class HiSumDataset(StreamMixIn):
         for turn in conversation:
             if turn['role'] == 'stream' and turn['num_frames'] > 0:
                 if turn['learn']:
-                    relevance_labels += [turn['related']] # this is modified, we need to store all the values now
+                    relevance_labels += [turn['related']] 
                 else:
                     relevance_labels += [-100] * turn['num_frames']
         
         return relevance_labels
 
     def __getitem__(self, index):
-        # try:
         anno = self.annos[index]
         res = *super().__getitem__(
             conversation=anno['conversation'],
             load_ranges=anno['load_ranges'],
         ), index
-        # except Exception as e:
-        #     logger.warning(f'Error in dataset {self.anno_file} when getting index {index}: {e}')
-        #     logger.warning(f'Using a random data instead.')
-        #     res = self.__getitem__(random.choice(list(range(len(self)))))
         return res
 
 if __name__ == '__main__':

@@ -31,8 +31,6 @@ class LiveMixin(AutoModelForCausalLM):
     def visual_embed(self, frames: torch.Tensor):
         if hasattr(self, 'vision_encode'):
             frames = self.vision_encode(self.vision_encoder, frames)
-            # print("vision_encoder id:", id(self.vision_encoder))
-            # print("vision_encode id:", id(self.vision_encode))
         frames = self.connector(frames)
         if hasattr(self, 'post_projector_pooling'):
             frames = self.post_projector_pooling(frames)
@@ -144,12 +142,6 @@ def build_live(
             attn_implementation=attn_implementation,
             # device_map='cuda' if torch.cuda.device_count() == 1 or dist.is_initialized() else 'auto',
             )
-        # with zero.GatheredParameters(list(model.parameters()), modifier_rank=None):
-        #     for name, module in model.named_modules():
-        #         for weight_name in finetune_modules:
-        #             if weight_name in name:
-        #                 for param in module.parameters():
-        #                     param.requires_grad = True
                         
     tokenizer = build_live_tokenizer_and_update_config(llm_pretrained, model.config)
     logger.warning(f"model config after update: {model.config}")
@@ -168,9 +160,6 @@ def build_live(
                 inference_mode=False,
             )
             print(f'creating lora with config: {lora_config}')
-            # model = get_peft_model(model, lora_config, autocast_adapter_dtype=False)
-            # with zero.GatheredParameters(list(model.parameters()), modifier_rank=None):
-            #     print("✅ Gathered model parameters before applying PEFT")
             
             model = get_peft_model(model, lora_config)
         
