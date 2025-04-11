@@ -64,6 +64,8 @@ class DenseVideoCaptioningStreamDataset(StreamMixIn):
                     'conversation': conversation,
                     'load_ranges': {video_uid: range(int(start_time*self.frame_fps), int(last_time*self.frame_fps))}
                 })
+        MAX_EXAMPLES = 12000  # or any number you want
+        self.annos = self.annos[:MAX_EXAMPLES]
         print(f'Dataset {self.__class__.__name__} has {len(self)} examples. Example data: {reformat_example_for_debug(self[0])}')
 
     def preprocess_conversation(self, conversation):

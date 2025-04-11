@@ -146,6 +146,8 @@ def train_model(args, local_rank, global_rank):
     # )
 
     print("Starting Training!")
+    if args.resume_from_checkpoint:
+        print(f"Resuming from checkpoint: {args.resume_from_checkpoint}")
 
     trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
 

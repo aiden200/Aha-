@@ -84,7 +84,7 @@ class HiSumDataset(StreamMixIn):
         # print(anno_path, h5_file, hisum_metadata)
         assert os.path.exists(anno_path) and os.path.exists(h5_file) and os.path.exists(hisum_metadata)
         with open(anno_path, "r") as f:
-            videos = json.load(f)["train_keys"]
+            videos = json.load(f)["train_keys"][:12000]
         
         video_info = {}
 
@@ -107,16 +107,17 @@ class HiSumDataset(StreamMixIn):
         # s = time.time()
         
         with h5py.File(h5_file, "r") as hdf:
-            failed_videos = 0
-            for video_id in videos:
+            success_vids = 0
+            all_files = os.listdir(self.video_root)
+            for video_id in tqdm(videos):
                 # If we were able to obtain the caption and download the video
                 # video_id is represented by video_[VID NUMBER] 
 
                 if video_id in video_info:
-                    video_filepath = os.path.join(self.video_root, f"{video_info[video_id]['youtube_id']}.mp4")
+                    video_filepath = f"{video_info[video_id]['youtube_id']}.mp4"
                     # checking if we managed to download the video
-                    if os.path.exists(video_filepath):
-
+                    if video_filepath in all_files:
+                        success_vids += 1
                         importance_scores = list(hdf[video_id]["gtscore"])
                         # importance_scores = [0]
                         categories = video_info[video_id]["categories"]
@@ -129,7 +130,7 @@ class HiSumDataset(StreamMixIn):
                             "video_uid": video_uid, #""
                             "video_id": video_id
                         }
-
+        print(f"Mr. HiSum loaded {success_vids} out of {len(videos)} videos")
         logger.info(f"Mr. HiSum dataset loaded {len(annotations)} out of {len(videos)} videos")
 
         return annotations

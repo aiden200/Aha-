@@ -96,9 +96,9 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
 
         self.lm_loss_weight = .5
         self.video_loss_weight = 1
-        self.info_loss_weight = 2.0
-        self.ref_loss_weight = 1.0
-        self.uncertainty_loss_weight = 0.2
+        self.info_loss_weight = 0.5
+        self.ref_loss_weight = 4.0
+        self.uncertainty_loss_weight = 0.1
         self.tv_loss_weight = 0.1
         if int(os.environ["RANK"]) == 0:
             print(f"using lm_loss_weight: {self.lm_loss_weight}, video_loss_weight: {self.video_loss_weight}, \
