@@ -52,9 +52,6 @@ class LiveTestArguments(LiveTrainingArguments):
     live_version: str = 'test'
     is_online_model: bool = True
     grounding_mode: bool = True        # if set, only output probs, never generate reply
-    input_dir: str = 'dataset/tvsum/ydata-tvsum50-v1_1/video'
-    test_fname: str = ''
-    output_fname: str = ''
     repetition_penalty: float = None
     stream_end_prob_threshold: float = None
     response_min_interval_frames: int = None
@@ -69,12 +66,18 @@ class LiveTestArguments(LiveTrainingArguments):
     remove_assistant_turns: bool = False        # if True, do not add assistant-generated content to input context (kv_cache)
     score_heads: str = 'relevance_score,informative_score'       # a list of score names, seperated with comma. e.g.: `relevance_score,informative_score`
     skip_eval: bool = False # skips evaluation
-    test_dataset: str = "tvsum" # the type of dataset 
-    caption_metadata_file: str = "datasets/tvsum/ydata-tvsum50-v1_1/data/ydata-tvsum50-info.tsv" # the caption file if applicable
-    video_metadata_file: str = 'datasets/tvsum/videos_metadata.json' # the video metadata file if applicable
     uncertainty_wait_threshold: float = 0.0 # based on log variance, or 1.0 if using variance
     max_wait_frames: int = 3 # maximum frames to wait before forcing a response, no matter how high uncertainty is
-
+    
+    # Evaluation specific arguments.
+    input_dir: str = ''
+    test_fname: str = ''
+    output_fname: str = ''
+    test_dataset: str = "" # the type of dataset 
+    caption_metadata_file: str = "" # the caption file if applicable
+    video_metadata_file: str = '' # the video metadata file if applicable
+    hisum_h5_file: str = "" # hisum file
+    anno_file: str = ""
 
 
 def get_args_class(args_version: str):

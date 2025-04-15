@@ -6,10 +6,14 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 import numpy as np
 import pandas as pd
+import h5py
+import matplotlib.pyplot as plt
+
 
 from .tvsum.tvsum_utils import *
 from .qvh.eval import eval_submission, load_jsonl
 from .dvc.eval_dvc import eval_with_files       # for youcook2 evaluation
+from .hisum.hisum_eval import hisum_evaluate_scores
 
 class CorrectnessEvaluator:
     @torch.no_grad()
@@ -427,7 +431,66 @@ if __name__ == '__main__':
             recall_0_5 = np.mean([e >= 0.5 for e in iou_scores]) * 100
             recall_0_7 = np.mean([e >= 0.7 for e in iou_scores]) * 100
             print(f'score: {mean_iou:.2f}/{recall_0_3:.2f}/{recall_0_5:.2f}/{recall_0_7:.2f}')
+    
+    elif args.func == "hisum":
+        with open(args.pred_file, "r") as f:
+            predictions = json.load(f)
+        with h5py.File(args.gold_file, "r") as hdf:
+            
+            category_scores = {}
+            final_results = list()
+            gt_dict = {}
+            pred_dict = {}
+                
+            for prediction in predictions:
+                video_uuid = prediction["video_uuid"]
+                h5_video_identifier = prediction["h5_identifier"]
+                true_frames_list = prediction['true_frames_list']
+                vid_ground_truth = list(hdf[h5_video_identifier]["gtscore"])
+                
+                
+                categories = prediction['categories']
+                ground_truth_frame_scores = []
+                pred_scores = list()
+                for i in range(len(prediction['debug_data'])):
+                    e = prediction['debug_data'][i]
+                    pred_scores.append(e['relevance_score'])
+                    # pred_scores.append(e["informative_score"] + e['relevance_score'] * 10)
+                    ground_truth_frame_scores.append(vid_ground_truth[i])
+                
+                pred_scores = np.array(pred_scores)
+                ground_truth_frame_scores = np.array(ground_truth_frame_scores)
+                for category_name in categories:
+                    if category_name not in category_scores:
+                        category_scores[category_name] = {"gt_dict": {}, "pred_dict": {}}
+                    category_scores[category_name]["gt_dict"][video_uuid] = ground_truth_frame_scores
+                    category_scores[category_name]["pred_dict"][video_uuid] = pred_scores
+                
+                pred_scores = (pred_scores - np.min(pred_scores)) / (np.max(pred_scores) - np.min(pred_scores))
+                
+                pred_dict[video_uuid] = pred_scores
+                gt_dict[video_uuid] = ground_truth_frame_scores
 
+            results = hisum_evaluate_scores(gt_dict, pred_dict)
+        
+
+            # Get the first video_uuid
+            first_video_uuid = list(gt_dict.keys())[0]
+            true_scores = gt_dict[first_video_uuid]
+            predicted_scores = pred_dict[first_video_uuid]
+
+            # Plot
+            plt.figure(figsize=(10, 5))
+            plt.plot(true_scores, label='Ground Truth', marker='o')
+            plt.plot(predicted_scores, label='Predicted', marker='x')
+            plt.title(f"Frame Scores for Video: {first_video_uuid}")
+            plt.xlabel("Frame Index")
+            plt.ylabel("Score")
+            plt.legend()
+            plt.grid(True)
+            plt.tight_layout()
+            plt.show()
+            plt.savefig("hisum_resuts.png")
 
     elif args.func == 'tvsum': 
         with open(args.pred_file, "r") as f:
@@ -451,13 +514,14 @@ if __name__ == '__main__':
                 e = prediction['debug_data'][i]
                 true_frame = true_frames_list[i]
                 # video_times.append(e['video_time'])
-                # pred_scores.append(e['relevance_score'])
-                pred_scores.append(e["informative_score"] + e['relevance_score'] * 10)
+                pred_scores.append(e['relevance_score'])
+                # pred_scores.append(e["informative_score"] + e['relevance_score'] * 10)
                 ground_truth_frame_scores.append(vid_ground_truth[true_frame])
                 # print(e['relevance_score'], vid_ground_truth[true_frame])
             
             pred_scores = np.array(pred_scores)
             ground_truth_frame_scores = np.array(ground_truth_frame_scores)
+            
 
             if category_code not in category_scores:
                 category_scores[category_code] = {"gt_dict": {}, "pred_dict": {}}

@@ -54,9 +54,9 @@ if __name__ == '__main__':
                 norm_pred = (pred_scores - np.min(pred_scores)) / (np.max(pred_scores) - np.min(pred_scores))
                 pred_scores = list(norm_pred)
 
-                importance_scores = np.array(importance_scores)
-                importance_scores = (importance_scores - np.min(importance_scores)) / (np.max(importance_scores) - np.min(importance_scores))
-                importance_scores = list(importance_scores)
+                # importance_scores = np.array(importance_scores)
+                # importance_scores = (importance_scores - np.min(importance_scores)) / (np.max(importance_scores) - np.min(importance_scores))
+                # importance_scores = list(importance_scores)
                 
                 x = list(range(len(pred_scores)))
                 fig, axes = plt.subplots(2, 1, figsize=(12, 6), sharex=True, height_ratios=[2, 1])
@@ -76,6 +76,7 @@ if __name__ == '__main__':
 
                 plt.tight_layout()
                 plt.show()
+                plt.savefig(f"results_{show_count}.png")
 
                 show_count += 1
 
