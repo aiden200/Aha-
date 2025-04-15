@@ -89,12 +89,12 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         self.vision_encoder = self.get_vision_tower()
 
 
-        self.lm_loss_weight = .5
+        self.lm_loss_weight = .2
         self.video_loss_weight = 1
         self.info_loss_weight = 0.5
-        self.ref_loss_weight = 4.0
+        self.ref_loss_weight = 8.0
         self.uncertainty_loss_weight = 0.1
-        self.tv_loss_weight = 0.1
+        self.tv_loss_weight = 0.01
         if torch.distributed.is_initialized() and int(os.environ["RANK"]) == 0:
             print(f"using lm_loss_weight: {self.lm_loss_weight}, video_loss_weight: {self.video_loss_weight}, \
                 info_loss_weight: {self.info_loss_weight}, ref_loss_weight: {self.ref_loss_weight}, \
@@ -184,7 +184,9 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         
         informative_logits = self.informative_head(hidden_states_no_grad).float()
         relevance_logits = self.relevance_head(hidden_states_no_grad).float()
-        relevance_logits = torch.sigmoid(relevance_logits)
+        # relevance_logits = torch.sigmoid(relevance_logits)
+        if not self.training:
+            relevance_logits = torch.clamp(relevance_logits, 0, 1)
         log_variance = self.uncertainty_head(hidden_states_no_grad).float()
         variance = torch.exp(torch.clamp(log_variance, min=-6, max=2))
 
@@ -299,7 +301,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
                 "train/video_loss": video_loss.item()*self.video_loss_weight if video_loss != 0 else None,
                 "train/total_loss": loss.item()
             }
-
+            print(f" Mean pred relevance: {relevance_logits_valid.mean().item():.4f}")
             print(weighted_logs)
 
             loss_logs = {k: v for k, v in weighted_logs.items() if v is not None}

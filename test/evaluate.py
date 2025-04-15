@@ -466,7 +466,7 @@ if __name__ == '__main__':
                     category_scores[category_name]["gt_dict"][video_uuid] = ground_truth_frame_scores
                     category_scores[category_name]["pred_dict"][video_uuid] = pred_scores
                 
-                pred_scores = (pred_scores - np.min(pred_scores)) / (np.max(pred_scores) - np.min(pred_scores))
+                # pred_scores = (pred_scores - np.min(pred_scores)) / (np.max(pred_scores) - np.min(pred_scores))
                 
                 pred_dict[video_uuid] = pred_scores
                 gt_dict[video_uuid] = ground_truth_frame_scores
@@ -475,7 +475,7 @@ if __name__ == '__main__':
         
 
             # Get the first video_uuid
-            first_video_uuid = list(gt_dict.keys())[0]
+            first_video_uuid = list(gt_dict.keys())[3]
             true_scores = gt_dict[first_video_uuid]
             predicted_scores = pred_dict[first_video_uuid]
 
