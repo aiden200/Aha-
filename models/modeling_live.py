@@ -140,7 +140,7 @@ def build_live(
             config=config_class.from_pretrained(llm_pretrained, **kwargs),
             torch_dtype=torch_dtype, 
             attn_implementation=attn_implementation,
-            # device_map='cuda' if torch.cuda.device_count() == 1 or dist.is_initialized() else 'auto',
+            device_map='cuda' if torch.cuda.device_count() == 1 or dist.is_initialized() else 'auto',
             )
                         
     tokenizer = build_live_tokenizer_and_update_config(llm_pretrained, model.config)
@@ -176,4 +176,6 @@ def build_live(
         if set_vision_inside:
             model.set_vision_inside()
         model.requires_grad_(False)
+        model.currently_training = False
+
     return model, tokenizer

@@ -252,7 +252,7 @@ For the master node, run:
 
 
 ```bash
-PYTHONWARNINGS="ignore" torchrun --nproc_per_node 2 --nnodes=2 --node_rank=0 --master_port 29506 \
+PYTHONWARNINGS="ignore" torchrun --nproc_per_node 2 --nnodes=4 --node_rank=0 --master_port 29506 \
    --rdzv_id=456 --rdzv_backend=static --rdzv_endpoint=127.0.0.1:48123 \
    train.py --deepspeed configs/deepspeed/zero2.json \
     --bf16 true --tf32 true \
@@ -275,8 +275,8 @@ Run the following command on each slave node (all nodes excluding the master nod
 
 
 ```bash
-PYTHONWARNINGS="ignore" torchrun --nproc_per_node 2 --nnodes=2 --node_rank=1 --master_port 29506 \
-   --rdzv_id=456 --rdzv_backend=static --rdzv_endpoint=10.70.80.4:48123 \
+PYTHONWARNINGS="ignore" torchrun --nproc_per_node 2 --nnodes=4 --node_rank=NODE_RANK --master_port 29506 \
+   --rdzv_id=456 --rdzv_backend=static --rdzv_endpoint=IP_ADDR_MASTER_NODE:48123 \
    train.py --deepspeed configs/deepspeed/zero2.json \
     --bf16 true --tf32 true \
     --dataset_config configs/datasets/actual_paperspace_configuration.json \

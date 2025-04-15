@@ -451,7 +451,8 @@ if __name__ == '__main__':
                 e = prediction['debug_data'][i]
                 true_frame = true_frames_list[i]
                 # video_times.append(e['video_time'])
-                pred_scores.append(e['relevance_score'])
+                # pred_scores.append(e['relevance_score'])
+                pred_scores.append(e["informative_score"] + e['relevance_score'] * 10)
                 ground_truth_frame_scores.append(vid_ground_truth[true_frame])
                 # print(e['relevance_score'], vid_ground_truth[true_frame])
             

@@ -79,6 +79,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         self.global_step = 0
         self.model = VideoHeadLlavaQwenModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.currently_training = True
 
         self.informative_head = nn.Linear(config.hidden_size, 2, bias=False)
         self.relevance_head = nn.Linear(config.hidden_size, 1, bias=False)
@@ -94,7 +95,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         self.ref_loss_weight = 4.0
         self.uncertainty_loss_weight = 0.1
         self.tv_loss_weight = 0.1
-        if int(os.environ["RANK"]) == 0:
+        if torch.distributed.is_initialized() and int(os.environ["RANK"]) == 0:
             print(f"using lm_loss_weight: {self.lm_loss_weight}, video_loss_weight: {self.video_loss_weight}, \
                 info_loss_weight: {self.info_loss_weight}, ref_loss_weight: {self.ref_loss_weight}, \
                     uncertainty_loss_weight: {self.uncertainty_loss_weight}, and \
@@ -278,7 +279,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
 
         
 
-        if int(os.environ['RANK']) == 0:
+        if int(os.environ['RANK']) == 0 and self.training:
             loss_logs = {
                 "train/tv_loss": tv_loss.item() if tv_loss != 0 else None,
                 "train/lm_loss": lm_loss.item() if lm_loss != 0 else None,
@@ -286,7 +287,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
                 "train/ref_loss": ref_loss.item() if ref_loss != 0 else None,
                 "train/uncertainty_loss": uncertainty_loss.item() if uncertainty_loss != 0 else None,
                 "train/video_loss": video_loss.item() if video_loss != 0 else None,
-                "train/total_loss": loss.item(),
+                "train/total_loss": loss.item(), #if not isinstance(loss, float) else loss,
             }
 
             weighted_logs = {
@@ -296,7 +297,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
                 "train/ref_loss": ref_loss.item()*self.ref_loss_weight if ref_loss != 0 else None,
                 "train/uncertainty_loss": uncertainty_loss.item()*self.uncertainty_loss_weight if uncertainty_loss != 0 else None,
                 "train/video_loss": video_loss.item()*self.video_loss_weight if video_loss != 0 else None,
-                # "train/total_loss": loss.item()
+                "train/total_loss": loss.item()
             }
 
             print(weighted_logs)

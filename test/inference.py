@@ -14,6 +14,7 @@ from llava.model.builder import load_pretrained_model
 from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
 from llava.conversation import conv_templates
 
+
 from models import build_model_and_tokenizer, fast_greedy_generate, parse_args
 from .datasets import FastAndAccurateStreamingVideoQADataset
 
@@ -21,9 +22,12 @@ from .datasets import FastAndAccurateStreamingVideoQADataset
 class LiveInferForBenchmark:
     def __init__(self, args) -> None:
         assert not (args.bf16 and args.fp16), "only one of --bf16 true and --fp16 true can be set"
+
+        self.peft_model_id = "aiden200/aha"  
         self.torch_dtype = torch.bfloat16 if args.bf16 else torch.float16 #if args.fp16 else torch.float32
         self.model, self.tokenizer = build_model_and_tokenizer(is_training=False, set_vision_inside=True, torch_dtype=self.torch_dtype, **asdict(args))
         self.model.eval()
+        self.model.currently_training = False
         if 'llava' in args.llm_pretrained:
             self.image_processor = self.model.get_vision_tower().image_processor
         else:
@@ -80,14 +84,6 @@ class LiveInferForBenchmark:
             self.frame_interval = frame_interval
             self.frame_fps = 1 / self.frame_interval
 
-    # DEPRECATED
-    def _call_for_response(self, video_time, query):
-        raise ValueError("Depreicated")
-
-    # DEPRECATED
-    def _call_for_streaming(self):
-        raise ValueError("Depreicated")
-
     def reset(self, ):
         self.query_queue = collections.deque()
         self.frame_embeds_queue = collections.deque()
@@ -142,7 +138,7 @@ class LiveInferForBenchmark:
 
     def _encode_frame(self):
         """
-        returns: informative_score, relevance_score
+        returns: informative_score, relevance_score, uncertainty_score
         """
         if not self.frame_embeds_queue:
             return None, None
@@ -159,11 +155,12 @@ class LiveInferForBenchmark:
             frame_embeds.view(1, -1, self.hidden_size).to(self.last_ids.device),
         ], dim=1)
         outputs = self.model(inputs_embeds=inputs_embeds, use_cache=True, past_key_values=self.past_key_values, return_dict=True)
+        # print(outputs)
         self.past_key_values = outputs.past_key_values
         self.frame_idx += 1
         self.num_frames_no_reply += 1
         informative_score = outputs.informative_logits[0,-1].softmax(dim=-1)[1].item()
-        relevance_score = outputs.relevance_logits[0,-1].softmax(dim=-1)[1].item()
+        relevance_score = outputs.relevance_logits[0, -1].item()
         uncertainty_score = torch.exp(outputs.uncertainty[0, -1]).item()
         self.last_role = 'stream'
         return {"informative_score": informative_score, "relevance_score": relevance_score}, uncertainty_score
@@ -265,13 +262,24 @@ class DoNothingDataCollator:
         return batch[0]
 
 
+
+
+def truncate_sig(x, sig=3):
+    if x == 0:
+        return 0
+    return float(f"{x:.{sig}g}")
+
+
 def round_numbers(data, n):
     if isinstance(data, list):
         return [round_numbers(d, n) for d in data]
     elif isinstance(data, dict):
         return {k: round_numbers(v, n) for k, v in data.items()}
     elif isinstance(data, float):
-        return round(data, n)
+        if abs(data) <= 10**(-n):
+            return truncate_sig(data, n)
+        else:
+            return round(data, n)
     return data
 
 
@@ -365,6 +373,8 @@ if __name__ == '__main__':
     system_prompt="A multimodal AI assistant is helping users with some activities. \
         Below is their conversation, interleaved with the list of video frames received by the assistant."
 
+    # So we can get through the DDP Print statements
+    os.environ['RANK'] = "0"
 
     args = parse_args('test')
     if args.skip_eval:
@@ -391,6 +401,10 @@ if __name__ == '__main__':
 
         results = []
 
+
+
+
+
         for video_name_with_extension in tqdm(data):
             video_uuid = video_name_with_extension[:-4]
             video_path = os.path.join(args.input_dir, video_name_with_extension)
@@ -412,7 +426,9 @@ if __name__ == '__main__':
             infer.input_query_stream(conversation)
             model_response_list = infer.inference()
             res = {'video_uuid': video_uuid, 'model_response_list': model_response_list, 'video_duration': video_duration, 'true_frames_list': true_frames_list}
+            
             res['debug_data'] = round_numbers(infer.debug_data_list, 3)
+            # print(res['debug_data'])
             results.append(res)
         f_out = open(args.output_fname, 'w')
         f_out.write(json.dumps(results, indent=4))
