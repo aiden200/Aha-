@@ -3,8 +3,21 @@ import h5py
 import numpy as np
 from itertools import product
 from tqdm import tqdm
+import concurrent.futures
 from .hisum.hisum_eval import hisum_evaluate_scores
 from .tvsum.tvsum_utils import *
+
+def score_worker(args_tuple):
+    alpha, beta, epsilon, predictions, dataset, hdf_path, ground_truths = args_tuple
+
+    if dataset == "hisum":
+        with h5py.File(hdf_path, "r") as hdf:
+            score = hisum_score_calculation(predictions, hdf, alpha, beta, epsilon)
+
+    elif dataset == "tvsum":
+        score = tvsum_score_calculation(predictions, ground_truths, alpha, beta, epsilon)
+
+    return score, {"alpha": alpha, "beta": beta, "epsilon": epsilon}
 
 
 
@@ -92,11 +105,11 @@ def grid_search(args, param_grid):
     best_params = {"alpha": None, "beta": None, "epsilon": None}
     hdf = None
     best_score = -np.inf 
+    ground_truths = None
     
     if args.dataset == "hisum":
         with open(args.pred_file, "r") as f:
             predictions = json.load(f)
-        hdf = h5py.File(args.gold_file, "r")
         
     elif args.dataset == "tvsum":
         with open(args.pred_file, "r") as f:
@@ -110,27 +123,23 @@ def grid_search(args, param_grid):
         len(param_grid["epsilon"])
     )
     
-    for alpha, beta, epsilon in tqdm(
-            product(param_grid["alpha"], param_grid["beta"], param_grid["epsilon"]),
-            total=total_combinations,
-            desc=f"Grid Search {args.dataset}"
-        ):
-        
-        if args.dataset == "hisum":
-            score = hisum_score_calculation(predictions, hdf, alpha, beta, epsilon)
-                
-        elif args.dataset == "tvsum":
-            score = tvsum_score_calculation(predictions, ground_truths, alpha, beta, epsilon)
+    NUM_WORKERS = 20
     
+    param_combos = list(product(param_grid["alpha"], param_grid["beta"], param_grid["epsilon"]))
+    args_list = [(alpha, beta, epsilon, predictions, args.dataset, args.gold_file, ground_truths) for alpha, beta, epsilon in param_combos]
+
+    best_score = float("-inf")
+    best_params = {}
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
+        results = list(tqdm(executor.map(score_worker, args_list), total=len(args_list), desc=f"Grid Search {args.dataset}"))
+
+    for score, params in results:
         if score > best_score:
             best_score = score
-            best_params = {"alpha": alpha, "beta": beta, "epsilon": epsilon}
-            
-    # Return both the best parameters and the best score achieved.
+            best_params = params
+
     best_params["best_score"] = best_score
-    
-    if hdf:
-        hdf.close()
         
     return best_params
 
@@ -144,8 +153,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     param_grid = {
-        "alpha": np.linspace(0.0, 1.5, 11), # Importance
-        "beta": np.linspace(0.0, 2.0, 6), # Relevance
+        "alpha": np.linspace(0.0, 2.0, 20), # Importance
+        "beta": np.linspace(0.0, 2.0, 20), # Relevance
         "epsilon": np.linspace(0.0, 1.0, 11) # Uncertainty
     }
 

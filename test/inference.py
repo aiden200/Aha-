@@ -446,7 +446,7 @@ if __name__ == '__main__':
         hisum_metadata = os.path.join(args.caption_metadata_file) #.json file with metadata
         assert os.path.exists(anno_path) and os.path.exists(h5_file) and os.path.exists(hisum_metadata)
         with open(anno_path, "r") as f:
-            videos = json.load(f)["test_keys"][:50]
+            videos = json.load(f)["test_keys"]
         
         video_info = {}
 

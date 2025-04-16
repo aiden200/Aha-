@@ -474,7 +474,7 @@ if __name__ == '__main__':
                     category_scores[category_name]["pred_dict"][video_uuid] = pred_scores
                 
                 # pred_scores = (pred_scores - np.min(pred_scores)) / (np.max(pred_scores) - np.min(pred_scores))
-                
+                pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')
                 pred_dict[video_uuid] = pred_scores
                 gt_dict[video_uuid] = ground_truth_frame_scores
 
@@ -531,6 +531,8 @@ if __name__ == '__main__':
                 # print(e['relevance_score'], vid_ground_truth[true_frame])
             
             pred_scores = np.array(pred_scores)
+        
+
             ground_truth_frame_scores = np.array(ground_truth_frame_scores)
             
 
