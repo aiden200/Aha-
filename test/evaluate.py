@@ -454,8 +454,11 @@ if __name__ == '__main__':
                 pred_scores = list()
                 for i in range(len(prediction['debug_data'])):
                     e = prediction['debug_data'][i]
-                    pred_scores.append(e['relevance_score'])
-                    # pred_scores.append(e["informative_score"] + e['relevance_score'] * 10)
+                    # pred_scores.append(e['relevance_score'])
+                    pred_scores.append(
+                        args.alpha *e["informative_score"]\
+                            + args.beta * e['relevance_score'] \
+                                + args.epsilon * e["uncertainty_score"])
                     ground_truth_frame_scores.append(vid_ground_truth[i])
                 
                 pred_scores = np.array(pred_scores)
