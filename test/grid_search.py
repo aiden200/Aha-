@@ -33,7 +33,7 @@ def hisum_score_calculation(predictions, hdf, alpha, beta, epsilon):
     
 
     results = hisum_evaluate_scores(gt_dict, pred_dict, print_logs=False)
-    score = results["mAP"]
+    score = results["mAP@50"]
     return score
 
 
@@ -91,19 +91,18 @@ def grid_search(args, param_grid):
 
     best_params = {"alpha": None, "beta": None, "epsilon": None}
     hdf = None
+    best_score = -np.inf 
     
     if args.dataset == "hisum":
         with open(args.pred_file, "r") as f:
             predictions = json.load(f)
         hdf = h5py.File(args.gold_file, "r")
-        best_score = np.inf 
         
     elif args.dataset == "tvsum":
         with open(args.pred_file, "r") as f:
             predictions = json.load(f)
         
         ground_truths = get_annos(args.gold_file)
-        best_score = -np.inf
     
     total_combinations = (
         len(param_grid["alpha"]) *
@@ -119,17 +118,14 @@ def grid_search(args, param_grid):
         
         if args.dataset == "hisum":
             score = hisum_score_calculation(predictions, hdf, alpha, beta, epsilon)
-            if score > best_score:
-                best_score = score
-                best_params = {"alpha": alpha, "beta": beta, "epsilon": epsilon}
                 
         elif args.dataset == "tvsum":
             score = tvsum_score_calculation(predictions, ground_truths, alpha, beta, epsilon)
-            if score > best_score:
-                best_score = score
-                best_params = {"alpha": alpha, "beta": beta, "epsilon": epsilon}
-
     
+        if score > best_score:
+            best_score = score
+            best_params = {"alpha": alpha, "beta": beta, "epsilon": epsilon}
+            
     # Return both the best parameters and the best score achieved.
     best_params["best_score"] = best_score
     

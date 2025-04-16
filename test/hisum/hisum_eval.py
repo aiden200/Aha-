@@ -95,7 +95,8 @@ def hisum_evaluate_scores(gt_dict, pred_dict, print_logs=True):
         pearson_list.append(pearson_corr)
         spearman_list.append(spearman_corr)
     
-    map = hisum_mean_average_precision(gt_dict, pred_dict)
+    map50 = hisum_mean_average_precision(gt_dict, pred_dict, rho=.5)
+    map15 = hisum_mean_average_precision(gt_dict, pred_dict, rho=.15)
     f1 = hisum_f1_score_summarization(gt_dict, pred_dict)
 
     if print_logs:
@@ -104,7 +105,8 @@ def hisum_evaluate_scores(gt_dict, pred_dict, print_logs=True):
         print(f"  MAE: {np.mean(mae_list):.4f}")
         print(f"  Pearson: {np.mean(pearson_list):.4f}")
         print(f"  Spearman: {np.mean(spearman_list):.4f}")
-        print(f"  mAP: {map:.4f}")
+        print(f"  mAP@50: {map50:.4f}")
+        print(f"  mAP@15: {map15:.4f}")
         print(f"  F1: {f1:.4f}")
         
 
@@ -113,6 +115,7 @@ def hisum_evaluate_scores(gt_dict, pred_dict, print_logs=True):
         "mae": np.mean(mae_list),
         "pearson": np.mean(pearson_list),
         "spearman": np.mean(spearman_list),
-        "mAP": map,
+        "mAP@50": map50,
+        "mAP@15": map15,
         "f1": f1
     }
