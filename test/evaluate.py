@@ -11,9 +11,9 @@ import matplotlib.pyplot as plt
 
 
 from .tvsum.tvsum_utils import *
+from .hisum.hisum_eval import *
 from .qvh.eval import eval_submission, load_jsonl
 from .dvc.eval_dvc import eval_with_files       # for youcook2 evaluation
-from .hisum.hisum_eval import hisum_evaluate_scores
 
 class CorrectnessEvaluator:
     @torch.no_grad()
@@ -194,6 +194,10 @@ if __name__ == '__main__':
     # qvh_highlight
     parser.add_argument('--relevance_threshold', type=float, default=0.1)
     parser.add_argument('--min_relevance_frames', type=int, default=5)
+    #tvsum and hisum
+    parser.add_argument("--alpha", type=float, default=0.0)
+    parser.add_argument("--beta", type=float, default=1.0)
+    parser.add_argument("--epsilon", type=float, default=0.0)
     args = parser.parse_args()
     print(args)
 
@@ -475,12 +479,13 @@ if __name__ == '__main__':
                 gt_dict[video_uuid] = ground_truth_frame_scores
 
             results = hisum_evaluate_scores(gt_dict, pred_dict)
-        
 
             # Get the first video_uuid
             first_video_uuid = list(gt_dict.keys())[3]
             true_scores = gt_dict[first_video_uuid]
             predicted_scores = pred_dict[first_video_uuid]
+            
+            print(predicted_scores)
 
             # Plot
             plt.figure(figsize=(10, 5))
@@ -517,7 +522,10 @@ if __name__ == '__main__':
                 e = prediction['debug_data'][i]
                 true_frame = true_frames_list[i]
                 # video_times.append(e['video_time'])
-                pred_scores.append(e['relevance_score'])
+                pred_scores.append(
+                        args.alpha *e["informative_score"]\
+                            + args.beta * e['relevance_score'] \
+                                + args.epsilon * e["uncertainty_score"])
                 # pred_scores.append(e["informative_score"] + e['relevance_score'] * 10)
                 ground_truth_frame_scores.append(vid_ground_truth[true_frame])
                 # print(e['relevance_score'], vid_ground_truth[true_frame])

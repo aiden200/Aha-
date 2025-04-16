@@ -94,7 +94,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         self.info_loss_weight = 0.5
         self.ref_loss_weight = 8.0
         self.uncertainty_loss_weight = 0.1
-        self.tv_loss_weight = 0.01
+        self.tv_loss_weight = 0.05
         if torch.distributed.is_initialized() and int(os.environ["RANK"]) == 0:
             print(f"using lm_loss_weight: {self.lm_loss_weight}, video_loss_weight: {self.video_loss_weight}, \
                 info_loss_weight: {self.info_loss_weight}, ref_loss_weight: {self.ref_loss_weight}, \
@@ -184,15 +184,16 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         
         informative_logits = self.informative_head(hidden_states_no_grad).float()
         relevance_logits = self.relevance_head(hidden_states_no_grad).float()
-        # relevance_logits = torch.sigmoid(relevance_logits)
-        if not self.training:
-            relevance_logits = torch.clamp(relevance_logits, 0, 1)
+        relevance_logits = torch.sigmoid(relevance_logits)
+        # if not self.training:
+        #     relevance_logits = torch.clamp(relevance_logits, 0, 1)
         log_variance = self.uncertainty_head(hidden_states_no_grad).float()
         variance = torch.exp(torch.clamp(log_variance, min=-6, max=2))
 
         # NOTE: all labels used here are already shifted in data collator
         ce_loss_fct = CrossEntropyLoss(ignore_index=-100)
-        mse_loss_fct = MSELoss()
+        # mse_loss_fct = MSELoss()
+        rel_loss_fct = nn.SmoothL1Loss()
         loss = 0.
 
         if labels is not None:
@@ -247,8 +248,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
 
 
             if relevance_labels_valid.numel() > 1:
-                mse_loss_fct = MSELoss()
-                ref_loss = mse_loss_fct(
+                ref_loss = rel_loss_fct(
                     relevance_logits_valid,
                     relevance_labels_valid
                 )
