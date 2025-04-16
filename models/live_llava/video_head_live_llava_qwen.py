@@ -301,7 +301,10 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
                 "train/video_loss": video_loss.item()*self.video_loss_weight if video_loss != 0 else None,
                 "train/total_loss": loss.item()
             }
-            print(f" Mean pred relevance: {relevance_logits_valid.mean().item():.4f}")
+            # print(f" Mean pred relevance: {relevance_logits_valid.mean().item():.4f}")
+            # print(f" Actual Mean relevance: {relevance_labels_valid.mean().item():.4f}")
+            # print(relevance_labels_valid)
+            # print(relevance_labels)
             print(weighted_logs)
 
             loss_logs = {k: v for k, v in weighted_logs.items() if v is not None}

@@ -190,7 +190,7 @@ class StreamMixIn(torch.utils.data.Dataset):
             if turn['role'] == 'stream' and turn['num_frames'] > 0:
                 if turn['learn']:
                     for related_info in turn['related']:
-                        relevance_labels += [int(related_info['related'])] * related_info['num_frames']
+                        relevance_labels += [related_info['related']] * related_info['num_frames']
                 else:
                     relevance_labels += [-100] * turn['num_frames']
         return relevance_labels
