@@ -18,6 +18,6 @@ PYTHONWARNINGS="ignore" torchrun --nproc_per_node 4 --master_port 29506 train.py
     --output_dir $output_dir \
     > $output_dir/train.log
 
-    # --resume_from_checkpoint outputs/aha/checkpoint-650 \
+    # --resume_from_checkpoint outputs/aha/checkpoint-375 \
 # check `configs/datasets/mmduetit.json` for datasets used.
 # If you want to use your own dataset to train MMDuet, write your own data config file like this file.

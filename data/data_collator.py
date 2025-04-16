@@ -8,7 +8,7 @@ def data_collator_with_video_labels(
     batch: list[list], *,
     tokenizer: PreTrainedTokenizer = None, image_processor = None,
     model_config=None, **kwargs
-):
+):  
     v_placeholder_id = model_config.v_placeholder_id
     frame_num_tokens = model_config.frame_num_tokens
 
@@ -20,7 +20,7 @@ def data_collator_with_video_labels(
 
     batch_labels = torch.full_like(batch.input_ids, LabelSmoother.ignore_index, dtype=torch.long)
     batch_informative_labels = torch.full_like(batch.input_ids, LabelSmoother.ignore_index, dtype=torch.long)
-    batch_relevance_labels = torch.full_like(batch.input_ids, LabelSmoother.ignore_index, dtype=torch.long)
+    batch_relevance_labels = torch.full_like(batch.input_ids, LabelSmoother.ignore_index, dtype=torch.float)
 
     for text, labels, informative_labels, relevance_labels, src_informative_labels, src_relevance_labels, \
         input_ids, offset_mapping, learn_range in zip(
@@ -40,7 +40,7 @@ def data_collator_with_video_labels(
         if src_informative_labels is not None:
             informative_labels[indices_to_learn] = torch.tensor(src_informative_labels, dtype=torch.long)
         if src_relevance_labels is not None:
-            relevance_labels[indices_to_learn] = torch.tensor(src_relevance_labels, dtype=torch.long)
+            relevance_labels[indices_to_learn] = torch.tensor(src_relevance_labels, dtype=torch.float)
 
     batch['labels'] = batch_labels
     batch['informative_labels'] = batch_informative_labels

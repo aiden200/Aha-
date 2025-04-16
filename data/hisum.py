@@ -63,6 +63,7 @@ class HiSumDataset(StreamMixIn):
             # One score per duration
             for i in range(len(importance_scores)):
                 conversation.append({'role': 'stream', 'num_frames': 1, 'learn': True, 'related': importance_scores[i]})
+            
 
             final_frame = math.floor(duration * self.frame_fps)
             if final_frame < len(conversation):
@@ -167,7 +168,7 @@ if __name__ == '__main__':
 
 
     dataset = HiSumDataset(
-        video_root="/data/yt8m/videos",
+        video_root="/mnt/training-data/yt8m/",
         anno_file="datasets/hisum/annotations/split.json",
         metadata_path="datasets/hisum/videos_metadata.json",
         hisum_h5_file="datasets/hisum/annotations/mr_hisum.h5",
