@@ -40,7 +40,7 @@ def data_collator_with_video_labels(
         if src_informative_labels is not None:
             informative_labels[indices_to_learn] = torch.tensor(src_informative_labels, dtype=torch.long)
         if src_relevance_labels is not None:
-            relevance_labels[indices_to_learn] = torch.tensor(src_relevance_labels, dtype=torch.flat)
+            relevance_labels[indices_to_learn] = torch.tensor(src_relevance_labels, dtype=torch.float)
 
     batch['labels'] = batch_labels
     batch['informative_labels'] = batch_informative_labels
