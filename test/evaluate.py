@@ -535,6 +535,7 @@ if __name__ == '__main__':
                 # print(e['relevance_score'], vid_ground_truth[true_frame])
             
             pred_scores = np.array(pred_scores)
+            pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')
         
 
             ground_truth_frame_scores = np.array(ground_truth_frame_scores)
@@ -550,9 +551,11 @@ if __name__ == '__main__':
             gt_dict[video_uuid] = ground_truth_frame_scores
 
         mAP50, mAP15 = evaluate_tvsum(gt_dict, pred_dict)
+        f115 = evaluate_f1(gt_dict, pred_dict)
         
         print(f"TvSum evaluation:\nmAP15: {mAP15}")
         print(f"TvSum evaluation:\nmAP50: {mAP50}")
+        print(f"TVSum F1@15: {f115}")
 
         for category in category_scores:
             categorymAP50, categorymAP15 = evaluate_tvsum(category_scores[category]["gt_dict"], category_scores[category]["pred_dict"])

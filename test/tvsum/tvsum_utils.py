@@ -35,6 +35,50 @@ def evaluate_tvsum(gt_dict, pred_dict):
     return mAP50, mAP15
 
 
+import numpy as np
+from sklearn.metrics import f1_score
+
+def f1_at_rho(gt_scores, pred_scores, rho):
+    """
+    Compute F1 score by selecting the top-rho fraction of frames as positives,
+    for both ground truth and predictions.
+
+    :param gt_scores: 1D array of continuous ground-truth importance scores
+    :param pred_scores: 1D array of continuous predicted scores
+    :param rho: fraction of frames to select (e.g. 0.15 or 0.50)
+    :return: F1 score
+    """
+    n = len(gt_scores)
+    k = max(1, int(rho * n))
+
+    # Binarize GT: top-k frames become positives
+    thresh_gt = np.sort(gt_scores)[-k]
+    gt_bin = (gt_scores >= thresh_gt).astype(int)
+
+    # Binarize predictions: top-k predicted as positives
+    topk_pred = np.argsort(pred_scores)[-k:]
+    pred_bin = np.zeros(n, dtype=int)
+    pred_bin[topk_pred] = 1
+
+    # Compute F1
+    return f1_score(gt_bin, pred_bin)
+
+def evaluate_f1(gt_dict, pred_dict, rho=0.15):
+    """
+    Compute average F1 at rho over a set of videos.
+    :param gt_dict: dict video_id -> gt_scores array
+    :param pred_dict: dict video_id -> pred_scores array
+    :param rho: fraction of frames to select
+    :return: mean F1 across all videos
+    """
+    f1_list = []
+    for vid, gt_scores in gt_dict.items():
+        pred_scores = pred_dict[vid]
+        f1_list.append(f1_at_rho(gt_scores, pred_scores, rho))
+    return np.mean(f1_list)
+
+
+
 def get_annos(annotation_file) -> dict:
         # load tsv file and get average importance scores
         assert os.path.exists(annotation_file), f"Error, {annotation_file} does not exist"

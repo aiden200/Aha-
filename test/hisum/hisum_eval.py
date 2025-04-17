@@ -33,7 +33,7 @@ def hisum_mean_average_precision(gt_dict, pred_dict, rho=0.5):
 
     return np.mean(ap_list)
 
-def hisum_f1_score_summarization(gt_dict, pred_dict, budget=0.15, shot_length=5):
+def hisum_f1_score_summarization(gt_dict, pred_dict, budget=0.15, shot_length=1):
     f1_list = []
     for video_id in gt_dict:
         gt_scores = gt_dict[video_id]
