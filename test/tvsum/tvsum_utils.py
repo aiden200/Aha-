@@ -5,36 +5,34 @@ import os
 import numpy as np
 from sklearn.metrics import average_precision_score
 
-def compute_map(y_true, y_scores):
-    """
-    Compute Mean Average Precision (mAP)
-    :param y_true: Relevance scores ranging between 0 and 1
-    :param y_scores: Model-generated scores for each frame/segment
-    :return: Mean Average Precision (mAP)
-    """
-    return average_precision_score(y_true, y_scores)
+def binarize_gt(gt_scores, rho):
+    n = len(gt_scores)
+    k = max(1, int(rho * n))
+    thresh = np.sort(gt_scores)[-k]
+    return (gt_scores >= thresh).astype(int)
 
-def compute_top5_map(y_true, y_scores):
-    """
-    Compute Top-5 Mean Average Precision (mAP)
-    :param y_true: Relevance scores ranging between 0 and 1
-    :param y_scores: Model-generated scores for each frame/segment
-    :return: Top-5 mAP
-    """
-    # Get indices of top-5 highest scoring predictions
-    top5_indices = np.argsort(y_scores)[-5:][::-1]  # Top 5 sorted in descending order
-    
-    # Extract top-5 relevance scores and their predicted scores
-    top5_y_true = np.array([y_true[i] for i in top5_indices])
-    top5_y_scores = np.array([y_scores[i] for i in top5_indices])
-    
-    # Compute precision at each rank (cumulative precision)
-    precisions = [np.mean(top5_y_true[:k+1]) for k in range(len(top5_y_true))]
-    
-    # Compute Top-5 mAP as the mean of the precision scores weighted by relevance
-    top5_map = np.sum(precisions * top5_y_true) / np.sum(top5_y_true) if np.sum(top5_y_true) > 0 else 0.0
-    
-    return top5_map
+def map_at_rho(gt_scores, pred_scores, rho):
+    gt_bin = binarize_gt(gt_scores, rho)
+    return average_precision_score(gt_bin, pred_scores)
+
+
+def evaluate_tvsum(gt_dict, pred_dict):
+
+    map50_scores = []
+    map15_scores = []
+
+    for video_id, gt_scores in gt_dict.items():
+        pred_scores = pred_dict[video_id]
+
+
+        map50 = map_at_rho(gt_scores, pred_scores, rho=0.50)
+        map15 = map_at_rho(gt_scores, pred_scores, rho=0.15)
+        map50_scores.append(map50)
+        map15_scores.append(map15)
+
+    mAP50 = np.mean(map50_scores)
+    mAP15 = np.mean(map15_scores)
+    return mAP50, mAP15
 
 
 def get_annos(annotation_file) -> dict:
@@ -198,136 +196,3 @@ def compute_ap(gt_binary, sorted_indices, k=5):
         rec_prev = rec
         prec_prev = prec
     return ap
-
-def evaluate_tvsum(gt_dict, pred_dict, k=5):
-    """
-    Evaluate TVSum mAP using ground truth and predicted saliency scores.
-    
-    Parameters:
-    - gt_dict: dictionary mapping video ids to ground truth scores. Each value can be:
-               a 1D array (num_clips,) for single annotation, or
-               a 2D array (num_clips, num_annotations) for multiple annotations.
-    - pred_dict: dictionary mapping video ids to predicted clip-level saliency scores (1D array).
-    - k: number of top clips to consider for AP calculation (default is 5).
-    
-    Returns:
-    - mAP: the mean average precision across videos.
-    """
-    ap_scores = []
-
-    for video_id, gt_scores in gt_dict.items():
-        pred_scores = pred_dict[video_id]
-        
-        if gt_scores.shape[0] != pred_scores.shape[0]:
-            raise ValueError(f"Number of clips mismatch for video {video_id}")
-
-        # Rank the clips based on predicted saliency (in descending order)
-        sorted_indices = np.argsort(-pred_scores)
-
-        # Case 1: Single annotation (1D array)
-        if gt_scores.ndim == 1:
-            threshold = np.median(gt_scores)
-            gt_binary = (gt_scores > threshold).astype(float)
-            ap = compute_ap(gt_binary, sorted_indices, k)
-            ap_scores.append(ap)
-        # Case 2: Multiple annotations (2D array: num_clips x num_annotations)
-        elif gt_scores.ndim == 2:
-            num_annotations = gt_scores.shape[1]
-            ap_video = []
-            for i in range(num_annotations):
-                gt_anno = gt_scores[:, i]
-                threshold = np.median(gt_anno)
-                gt_binary = (gt_anno > threshold).astype(float)
-                ap_video.append(compute_ap(gt_binary, sorted_indices, k))
-            ap_scores.append(np.mean(ap_video))
-        else:
-            raise ValueError("Ground truth scores must be either a 1D or 2D numpy array.")
-
-    mAP = np.mean(ap_scores)
-    return mAP
-
-
-def compute_ap_top5(gt_binary, pred_scores, k=5):
-    """
-    Compute the average precision (AP) using the top k ranked clips.
-    
-    Parameters:
-    - gt_binary: a 1D numpy array of binary ground truth labels.
-    - pred_scores: a 1D numpy array of predicted saliency scores.
-    - k: number of top clips to consider (default is 5).
-    
-    Returns:
-    - ap: average precision value computed using the top k clips.
-    """
-    # Get indices that sort the predictions in descending order.
-    sorted_indices = np.argsort(-pred_scores)
-    # Select top-k ground truth labels based on prediction ranking.
-    topk_labels = gt_binary[sorted_indices][:k]
-    
-    # If there are no positive samples in top-k, return AP as 0.
-    num_pos = np.sum(topk_labels)
-    if num_pos == 0:
-        return 0.0
-    
-    hits = 0.0
-    ap = 0.0
-    rec_prev = 0.0
-    prec_prev = 1.0
-    
-    for j, label in enumerate(topk_labels):
-        hits += label
-        rec = hits / num_pos
-        prec = hits / (j + 1)
-        # Use trapezoidal integration between precision and recall values.
-        ap += (rec - rec_prev) * (prec + prec_prev) / 2.0
-        rec_prev = rec
-        prec_prev = prec
-        
-    return ap
-
-
-def evaluate_top5_mAP(gt_dict, pred_dict, k=5):
-    """
-    Evaluate Top-5 mAP on the TVSum benchmark.
-    
-    Parameters:
-    - gt_dict: dictionary mapping video IDs to ground truth scores.
-      Each value can be:
-        * a 1D array (num_clips,) for a single annotation, or
-        * a 2D array (num_clips, num_annotations) for multiple annotations.
-    - pred_dict: dictionary mapping video IDs to predicted clip-level saliency scores (1D array).
-    - k: number of top clips to consider (default is 5).
-    
-    Returns:
-    - mAP: mean Average Precision computed over videos using the top k clips.
-    """
-    ap_scores = []
-    
-    for video_id, gt_scores in gt_dict.items():
-        pred_scores = pred_dict[video_id]
-        
-        if gt_scores.shape[0] != pred_scores.shape[0]:
-            raise ValueError(f"Number of clips mismatch for video {video_id}")
-        
-        # Case 1: Single annotation (1D array)
-        if gt_scores.ndim == 1:
-            threshold = np.median(gt_scores)
-            gt_binary = (gt_scores > threshold).astype(float)
-            ap = compute_ap_top5(gt_binary, pred_scores, k)
-            ap_scores.append(ap)
-        # Case 2: Multiple annotations (2D array: num_clips x num_annotations)
-        elif gt_scores.ndim == 2:
-            num_annotations = gt_scores.shape[1]
-            ap_per_video = []
-            for i in range(num_annotations):
-                gt_anno = gt_scores[:, i]
-                threshold = np.median(gt_anno)
-                gt_binary = (gt_anno > threshold).astype(float)
-                ap = compute_ap_top5(gt_binary, pred_scores, k)
-                ap_per_video.append(ap)
-            ap_scores.append(np.mean(ap_per_video))
-        else:
-            raise ValueError("Ground truth scores must be either a 1D or 2D numpy array.")
-    
-    mAP = np.mean(ap_scores)
-    return mAP

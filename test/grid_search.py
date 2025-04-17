@@ -31,13 +31,13 @@ def hisum_score_calculation(predictions, hdf, alpha, beta, epsilon):
         vid_ground_truth = list(hdf[h5_video_identifier]["gtscore"])
         ground_truth_frame_scores = []
         pred_scores = list()
-        for i in range(len(prediction['debug_data'])):
+        for i in range(1, min(len(prediction['debug_data']), len(vid_ground_truth))):
             e = prediction['debug_data'][i]
             pred_scores.append(
                 alpha *e["informative_score"]\
                     + beta * e['relevance_score'] \
                         + epsilon * e["uncertainty_score"])
-            ground_truth_frame_scores.append(vid_ground_truth[i])
+            ground_truth_frame_scores.append(vid_ground_truth[i-1])
         pred_scores = np.array(pred_scores)
         ground_truth_frame_scores = np.array(ground_truth_frame_scores)
         
@@ -76,9 +76,8 @@ def tvsum_score_calculation(predictions, ground_truths, alpha, beta, epsilon):
         pred_dict[video_uuid] = pred_scores
         gt_dict[video_uuid] = ground_truth_frame_scores
 
-    mAP = evaluate_tvsum(gt_dict, pred_dict, k=5)
-    top5mAP = evaluate_top5_mAP(gt_dict, pred_dict)
-    score = mAP
+    mAP50, mAP15 = evaluate_tvsum(gt_dict, pred_dict)
+    score = mAP50
     return score
 
 def grid_search(args, param_grid):

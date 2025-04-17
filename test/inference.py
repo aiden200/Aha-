@@ -347,6 +347,9 @@ def load_video_for_testing(video_file, output_fps=2, return_true_frames=False, m
         true_frame_index += 1
     cap.release()
 
+    if not frame_list:
+        return None, None, None, None
+
     if return_true_frames:
         return torch.tensor(np.stack(frame_list)), output_fps, video_duration, true_frame_index_list
 
@@ -414,7 +417,8 @@ if __name__ == '__main__':
             # max_num_frames=100
             max_num_frames = None
             video_frames, fps, video_duration, true_frames_list = load_video_for_testing(video_path, output_fps=args.frame_fps, return_true_frames=True, max_num_frames=max_num_frames)    
-
+            if video_frames == None:
+                continue
             conversation = list()
             conversation.append({"role": "system", "content": system_prompt})
             conversation.append({'role': 'user', 'content': query, 'time': 0})
@@ -446,6 +450,7 @@ if __name__ == '__main__':
         hisum_metadata = os.path.join(args.caption_metadata_file) #.json file with metadata
         assert os.path.exists(anno_path) and os.path.exists(h5_file) and os.path.exists(hisum_metadata)
         with open(anno_path, "r") as f:
+            # videos = json.load(f)["test_keys"]
             videos = json.load(f)["test_keys"]
         
         video_info = {}
@@ -474,36 +479,40 @@ if __name__ == '__main__':
 
                 if video_id in video_info:
                     video_filepath = f"{video_info[video_id]['youtube_id']}.mp4"
-                    # checking if we managed to download the video
-                    if video_filepath in all_files:
-                        success_vids += 1
-                        importance_scores = list(hdf[video_id]["gtscore"])
-                        categories = video_info[video_id]["categories"]
-                        caption = video_info[video_id]["caption"]
-                        
-                        
-                        video_uuid = video_filepath[:-4]
-                        video_path = os.path.join(args.input_dir, video_filepath)
-                        query = random.choice(query_templates) % caption
+                    try:
+                        # checking if we managed to download the video
+                        if video_filepath in all_files:
+                            success_vids += 1
+                            importance_scores = list(hdf[video_id]["gtscore"])
+                            categories = video_info[video_id]["categories"]
+                            caption = video_info[video_id]["caption"]
+                            
+                            
+                            video_uuid = video_filepath[:-4]
+                            video_path = os.path.join(args.input_dir, video_filepath)
+                            query = random.choice(query_templates) % caption
 
-                        # max_num_frames=100
-                        max_num_frames = None
-                        video_frames, fps, video_duration, true_frames_list = load_video_for_testing(video_path, output_fps=args.frame_fps, return_true_frames=True, max_num_frames=max_num_frames)    
+                            # max_num_frames=100
+                            max_num_frames = None
+                            video_frames, fps, video_duration, true_frames_list = load_video_for_testing(video_path, output_fps=args.frame_fps, return_true_frames=True, max_num_frames=max_num_frames)    
+                            if video_frames == None:
+                                continue
+                            conversation = list()
+                            conversation.append({"role": "system", "content": system_prompt})
+                            conversation.append({'role': 'user', 'content': query, 'time': 0})
 
-                        conversation = list()
-                        conversation.append({"role": "system", "content": system_prompt})
-                        conversation.append({'role': 'user', 'content': query, 'time': 0})
 
-
-                        infer.reset()
-                        print(f"num frames and fps for {video_uuid}: {len(video_frames)}, {fps}")
-                        infer.set_fps(fps=fps)
-                        infer.input_video_stream(video_frames)
-                        infer.input_query_stream(conversation)
-                        model_response_list = infer.inference()
-                        res = {"categories": video_info[video_id]["categories"],'h5_identifier': video_id, 'video_uuid': video_uuid, 'model_response_list': model_response_list, 'video_duration': video_duration, 'true_frames_list': true_frames_list}
-                        res['debug_data'] = round_numbers(infer.debug_data_list, 3)
-                        results.append(res)
+                            infer.reset()
+                            print(f"num frames and fps for {video_uuid}: {len(video_frames)}, {fps}")
+                            infer.set_fps(fps=fps)
+                            infer.input_video_stream(video_frames)
+                            infer.input_query_stream(conversation)
+                            model_response_list = infer.inference()
+                            res = {"categories": video_info[video_id]["categories"],'h5_identifier': video_id, 'video_uuid': video_uuid, 'model_response_list': model_response_list, 'video_duration': video_duration, 'true_frames_list': true_frames_list}
+                            res['debug_data'] = round_numbers(infer.debug_data_list, 3)
+                            results.append(res)
+                    except Exception as e:
+                        print(f"Exception on video: {video_filepath} with exception: {e}")
         
         
         

@@ -451,19 +451,23 @@ if __name__ == '__main__':
                 h5_video_identifier = prediction["h5_identifier"]
                 true_frames_list = prediction['true_frames_list']
                 vid_ground_truth = list(hdf[h5_video_identifier]["gtscore"])
-                
+                if not prediction['debug_data'] or not vid_ground_truth:
+                    continue
+                    
+                # print(len(vid_ground_truth), len(prediction["debug_data"]))
+                # print(vid_ground_truth, prediction["debug_data"])
                 
                 categories = prediction['categories']
                 ground_truth_frame_scores = []
                 pred_scores = list()
-                for i in range(len(prediction['debug_data'])):
+                for i in range(1, min(len(prediction['debug_data']), len(vid_ground_truth))):
                     e = prediction['debug_data'][i]
                     # pred_scores.append(e['relevance_score'])
                     pred_scores.append(
                         args.alpha *e["informative_score"]\
                             + args.beta * e['relevance_score'] \
                                 + args.epsilon * e["uncertainty_score"])
-                    ground_truth_frame_scores.append(vid_ground_truth[i])
+                    ground_truth_frame_scores.append(vid_ground_truth[i-1])
                 
                 pred_scores = np.array(pred_scores)
                 ground_truth_frame_scores = np.array(ground_truth_frame_scores)
@@ -545,16 +549,14 @@ if __name__ == '__main__':
             pred_dict[video_uuid] = pred_scores
             gt_dict[video_uuid] = ground_truth_frame_scores
 
-        mAP = evaluate_tvsum(gt_dict, pred_dict, k=5)
-        top5mAP = evaluate_top5_mAP(gt_dict, pred_dict)
+        mAP50, mAP15 = evaluate_tvsum(gt_dict, pred_dict)
         
-        print(f"TvSum evaluation:\nmAP: {mAP}")
-        print(f"TvSum evaluation:\nTop 5 - mAP: {top5mAP}")
+        print(f"TvSum evaluation:\nmAP15: {mAP15}")
+        print(f"TvSum evaluation:\nmAP50: {mAP50}")
 
         for category in category_scores:
-            category_mAP = evaluate_tvsum(category_scores[category]["gt_dict"], category_scores[category]["pred_dict"], k=5)
-            category_top5mAP = evaluate_top5_mAP(category_scores[category]["gt_dict"], category_scores[category]["pred_dict"])
-            print(f"{category} mAP: {category_mAP}, {category} top5mAP: {category_top5mAP}")
+            categorymAP50, categorymAP15 = evaluate_tvsum(category_scores[category]["gt_dict"], category_scores[category]["pred_dict"])
+            print(f"{category} mAP50: {categorymAP50}, {category} mAP15: {categorymAP15}")
             # if args.output_file:
             #     json.dump(final_results, open(args.output_file, 'w'), indent=4)
 
