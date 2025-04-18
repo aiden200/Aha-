@@ -46,7 +46,7 @@ def hisum_score_calculation(predictions, hdf, alpha, beta, epsilon):
     
 
     results = hisum_evaluate_scores(gt_dict, pred_dict, print_logs=False)
-    score = results["mAP@50"]
+    score = results["f1"]
     return score
 
 
@@ -77,6 +77,7 @@ def tvsum_score_calculation(predictions, ground_truths, alpha, beta, epsilon):
         gt_dict[video_uuid] = ground_truth_frame_scores
 
     mAP50, mAP15 = evaluate_tvsum(gt_dict, pred_dict)
+    f115 = evaluate_f1(gt_dict, pred_dict)
     score = mAP50
     return score
 

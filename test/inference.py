@@ -440,7 +440,7 @@ if __name__ == '__main__':
         f_out.flush()
 
 
-    if args.test_dataset == "hisum":
+    elif args.test_dataset == "hisum":
         with open(args.video_metadata_file, 'r') as f:
             data = json.load(f)
         
@@ -519,4 +519,93 @@ if __name__ == '__main__':
         f_out = open(args.output_fname, 'w')
         f_out.write(json.dumps(results, indent=4))
         f_out.flush()
+    else:
+        dataset = FastAndAccurateStreamingVideoQADataset(
+            data_file=args.test_fname, video_base_folder=args.input_dir,
+            start_idx=args.start_idx, end_idx=args.end_idx,
+            output_fps=args.frame_fps, output_resolution=args.frame_resolution, max_num_frames=args.max_num_frames,
+            time_instruction_format=args.time_instruction_format, system_prompt=args.system_prompt
+        )
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4, collate_fn=DoNothingDataCollator())
+
+        f_out = open(args.output_fname, 'w')
+        
+        if args.is_online_model:
+            if not args.grounding_mode:
+                for data_i, data in enumerate(tqdm(dataloader)):
+                    question_id, video_frames, conversation, fps, video_duration = data
+                    if question_id is None: continue
+                    infer.reset()
+                    print(f"num frames and fps for {question_id}: {len(video_frames)}, {fps}")
+                    infer.set_fps(fps=fps)
+                    infer.input_video_stream(video_frames)
+                    infer.input_query_stream(conversation)
+                    model_response_list = infer.inference()
+                    res = {'question_id': question_id, 'model_response_list': model_response_list, 'video_duration': video_duration}
+                    res['debug_data'] = round_numbers(infer.debug_data_list, 3)
+                    f_out.write(json.dumps(res) + '\n')
+                    if data_i % 5 == 0:
+                        f_out.flush()
+                f_out.close()
+
+            else:
+                infer.first_n_frames_no_generate = 100000       # so the generation process is never called, we just want `relevance_score` results
+                for data_i, data in enumerate(tqdm(dataloader)):
+                    question_id, video_frames, conversation, fps, video_duration = data
+                    if question_id is None: continue
+                    infer.reset()
+                    print(f"num frames and fps for {question_id}: {len(video_frames)}, {fps}")
+                    infer.set_fps(fps=fps)
+                    infer.input_video_stream(video_frames)
+                    infer.input_query_stream(conversation)
+                    model_response_list = infer.inference()
+                    res = {'question_id': question_id, 'model_response_list': model_response_list, 'video_duration': video_duration}
+                    res['debug_data'] = round_numbers(infer.debug_data_list, 3)
+                    f_out.write(json.dumps(res) + '\n')
+                    if data_i % 5 == 0:
+                        f_out.flush()
+                f_out.close()
+
+        else:
+            # llava onevision baseline
+            tokenizer, model, image_processor, max_length = load_pretrained_model(args.llm_pretrained, None, "llava_qwen", device_map="auto", attn_implementation=args.attn_implementation)  # Add any other thing you want to pass in llava_model_args
+            model.eval()
+
+            if args.lora_pretrained is not None:
+                print(f"loading lora ckpt from {args.lora_pretrained}, and setting mm_spatial_pool_stride to {args.video_pooling_stride}")
+                model = PeftModel.from_pretrained(model, args.lora_pretrained, is_trainable=False)
+                model.config.mm_spatial_pool_stride = args.video_pooling_stride
+
+            f_out = open(args.output_fname, 'w')
+            for data_i, data in enumerate(tqdm(dataloader)):
+                question_id, video_frames, conversation, fps, video_duration = data
+                if question_id is None: continue
+                conv_template = "qwen_1_5"
+                original_question = [e['content'] for e in conversation if e['role'] == 'user'][0]
+                question = f"{DEFAULT_IMAGE_TOKEN}\n{original_question}"
+                conv = copy.deepcopy(conv_templates[conv_template])
+                conv.append_message(conv.roles[0], question)
+                conv.append_message(conv.roles[1], None)
+                prompt_question = conv.get_prompt()
+                if data_i < 5:
+                    print(f'model input at example {data_i}: {prompt_question}')
+                input_ids = tokenizer_image_token(prompt_question, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(model.device)
+                image_sizes = [frame.size() for frame in video_frames]
+                image_tensor = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].half().to(model.device)
+                modalities = ["video"] * len(video_frames)
+                cont = model.generate(
+                    input_ids,
+                    images=[image_tensor],
+                    image_sizes=image_sizes,
+                    do_sample=False,
+                    temperature=0,
+                    max_new_tokens=512,
+                    modalities=modalities,
+                )
+                text_outputs = tokenizer.batch_decode(cont, skip_special_tokens=True)
+                res = {'question_id': question_id, 'model_response': text_outputs, 'question': original_question, 'video_duration': video_duration}
+                f_out.write(json.dumps(res) + '\n')
+                if data_i % 10 == 0:
+                    f_out.flush()
+            f_out.close()
     

@@ -33,7 +33,7 @@ def hisum_mean_average_precision(gt_dict, pred_dict, rho=0.5):
 
     return np.mean(ap_list)
 
-def hisum_f1_score_summarization(gt_dict, pred_dict, budget=0.15, shot_length=5):
+def hisum_f1_score_summarization(gt_dict, pred_dict, budget=0.15, shot_length=1):
     f1_list = []
     for video_id in gt_dict:
         gt_scores = gt_dict[video_id]
@@ -63,9 +63,14 @@ def hisum_f1_score_summarization(gt_dict, pred_dict, budget=0.15, shot_length=5)
         # Ground truth: top budget-percent of frames
         gt_selected = gt_scores >= np.percentile(gt_scores, 100 * (1 - budget))
         pred_selected = selected
+        
 
         f1 = f1_score(gt_selected, pred_selected)
-        f1_list.append(f1)
+        # if f1 == 0:
+        #     print(pred_scores, gt_scores)
+        #     print(gt_selected,pred_selected)
+        f1_list.append(round(f1, 2))
+    # print(f1_list)
 
     return np.mean(f1_list)
 
