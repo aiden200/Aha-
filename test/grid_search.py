@@ -46,7 +46,7 @@ def hisum_score_calculation(predictions, hdf, alpha, beta, epsilon):
     
 
     results = hisum_evaluate_scores(gt_dict, pred_dict, print_logs=False)
-    score = results["f1"]
+    score = results["mAP@50"]
     return score
 
 

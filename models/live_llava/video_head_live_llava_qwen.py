@@ -185,10 +185,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         informative_logits = self.informative_head(hidden_states_no_grad).float()
         relevance_logits = self.relevance_head(hidden_states_no_grad).float()
         relevance_logits = torch.sigmoid(relevance_logits)
-        # if not self.training:
-        #     relevance_logits = torch.clamp(relevance_logits, 0, 1)
         log_variance = self.uncertainty_head(hidden_states_no_grad).float()
-        variance = torch.exp(torch.clamp(log_variance, min=-6, max=2))
 
         # NOTE: all labels used here are already shifted in data collator
         ce_loss_fct = CrossEntropyLoss(ignore_index=-100)
@@ -256,8 +253,9 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
                 ref_loss = torch.tensor(0.0, device=relevance_logits.device)
 
 
-            min_log_var = math.log(1 / (2 * math.pi))  # ≈ -1.8379
-            max_log_var = 2.0
+            # min_log_var = math.log(1 / (2 * math.pi))  # ≈ -1.8379
+            max_log_var = 1.5
+            min_log_var = -4.0
             log_variance_clamped = torch.clamp(log_variance, min=min_log_var, max=max_log_var)
             variance = torch.exp(log_variance_clamped)
 
@@ -268,6 +266,11 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             nll_loss = (residual ** 2) / (2 * variance_valid + 1e-6)  + 0.5 * torch.log(2 * math.pi * variance_valid)
             uncertainty_loss = nll_loss.mean()
             uncertainty_loss = torch.clamp(uncertainty_loss, min=0)
+
+            # Maximizing diversity
+            uncertainty_penalty = -1e-3 * torch.std(log_variance_clamped)
+            uncertainty_loss = uncertainty_loss + uncertainty_penalty
+            print(uncertainty_loss, uncertainty_penalty)
 
 
 

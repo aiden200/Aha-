@@ -84,7 +84,10 @@ class HiSumDataset(StreamMixIn):
         # print(anno_path, h5_file, hisum_metadata)
         assert os.path.exists(anno_path) and os.path.exists(h5_file) and os.path.exists(hisum_metadata)
         with open(anno_path, "r") as f:
-            videos = json.load(f)["train_keys"][:12000]
+            random.seed(22)
+            videos = json.load(f)["train_keys"]
+            random.shuffle(videos)
+            videos = videos[:12000]
         
         video_info = {}
 
