@@ -218,6 +218,8 @@ class LiveInferForBenchmark:
             self.stream_end_prob_list.append(stream_end_score)
             self.stream_end_score_sum += stream_end_score
 
+            
+            
             if isinstance(self.running_list_length, int) and self.running_list_length > 0:
                 self.stream_end_prob_list = self.stream_end_prob_list[-self.running_list_length:]
             if self.stream_end_score_sum_threshold is not None and self.stream_end_score_sum > self.stream_end_score_sum_threshold:
@@ -226,25 +228,26 @@ class LiveInferForBenchmark:
             if self.stream_end_prob_threshold is not None and stream_end_score > self.stream_end_prob_threshold:
                 need_response = True
             
-            if self.uncertainty_lock:
-                # we add on how many frames we locked down
-                self.uncertainty_lock += 1
             
-            # If uncertainty is high, wait
-            if need_response and self.uncertainty_wait_threshold is not None and \
-                uncertainty_score > self.uncertainty_wait_threshold:
+            # if self.uncertainty_lock:
+            #     # we add on how many frames we locked down
+            #     self.uncertainty_lock += 1
+            
+            # # If uncertainty is high, wait
+            # if need_response and self.uncertainty_wait_threshold is not None and \
+            #     uncertainty_score > self.uncertainty_wait_threshold:
 
-                # Another way we can define the threshold
-                # if self.num_frames_no_reply > self.max_wait_frames:
-                #     need_response = True
-                # else:
-                #     need_response = False
+            #     # Another way we can define the threshold
+            #     # if self.num_frames_no_reply > self.max_wait_frames:
+            #     #     need_response = True
+            #     # else:
+            #     #     need_response = False
 
-                if self.uncertainty_lock < self.max_wait_frames:
-                    need_response = False
-                else:
-                    need_response = True
-                    self.uncertainty_lock = 0
+            #     if self.uncertainty_lock < self.max_wait_frames:
+            #         need_response = False
+            #     else:
+            #         need_response = True
+            #         self.uncertainty_lock = 0
 
             # 4. record the responses
             if need_response:
@@ -389,7 +392,8 @@ if __name__ == '__main__':
         # We don't want to reevaluate
         sys.exit() 
     print(args)
-    infer = LiveInferForBenchmark(args)
+
+    # infer = LiveInferForBenchmark(args)
     
     
     if args.test_dataset == "tvsum":
@@ -407,6 +411,7 @@ if __name__ == '__main__':
                 }
 
         results = []
+        infer = LiveInferForBenchmark(args)
 
 
         for video_name_with_extension in tqdm(data):
@@ -425,7 +430,7 @@ if __name__ == '__main__':
 
 
             infer.reset()
-            print(f"num frames and fps for {video_uuid}: {len(video_frames)}, {fps}")
+            # print(f"num frames and fps for {video_uuid}: {len(video_frames)}, {fps}")
             infer.set_fps(fps=fps)
             infer.input_video_stream(video_frames)
             infer.input_query_stream(conversation)
@@ -441,6 +446,7 @@ if __name__ == '__main__':
 
 
     elif args.test_dataset == "hisum":
+        
         with open(args.video_metadata_file, 'r') as f:
             data = json.load(f)
         
@@ -454,7 +460,7 @@ if __name__ == '__main__':
             videos = json.load(f)["test_keys"]
         
         video_info = {}
-
+        infer = LiveInferForBenchmark(args)
         with open(hisum_metadata, mode='r', newline='', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
@@ -503,7 +509,7 @@ if __name__ == '__main__':
 
 
                             infer.reset()
-                            print(f"num frames and fps for {video_uuid}: {len(video_frames)}, {fps}")
+                            # print(f"num frames and fps for {video_uuid}: {len(video_frames)}, {fps}")
                             infer.set_fps(fps=fps)
                             infer.input_video_stream(video_frames)
                             infer.input_query_stream(conversation)
@@ -527,16 +533,18 @@ if __name__ == '__main__':
             time_instruction_format=args.time_instruction_format, system_prompt=args.system_prompt
         )
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4, collate_fn=DoNothingDataCollator())
-
         f_out = open(args.output_fname, 'w')
         
+        infer = LiveInferForBenchmark(args)
         if args.is_online_model:
             if not args.grounding_mode:
+                # Youcook2
+                print("in")
                 for data_i, data in enumerate(tqdm(dataloader)):
                     question_id, video_frames, conversation, fps, video_duration = data
                     if question_id is None: continue
                     infer.reset()
-                    print(f"num frames and fps for {question_id}: {len(video_frames)}, {fps}")
+                    # print(f"num frames and fps for {question_id}: {len(video_frames)}, {fps}")
                     infer.set_fps(fps=fps)
                     infer.input_video_stream(video_frames)
                     infer.input_query_stream(conversation)
@@ -554,7 +562,7 @@ if __name__ == '__main__':
                     question_id, video_frames, conversation, fps, video_duration = data
                     if question_id is None: continue
                     infer.reset()
-                    print(f"num frames and fps for {question_id}: {len(video_frames)}, {fps}")
+                    # print(f"num frames and fps for {question_id}: {len(video_frames)}, {fps}")
                     infer.set_fps(fps=fps)
                     infer.input_video_stream(video_frames)
                     infer.input_query_stream(conversation)

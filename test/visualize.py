@@ -249,8 +249,8 @@ if __name__ == '__main__':
                 axes[1].set_title('Uncertainty Score Over Time')
 
                 plt.tight_layout()
-                plt.show()
                 plt.savefig(f"hisum_results_{show_count}.png")
+                plt.show()
 
                 show_count += 1
 

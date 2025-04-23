@@ -123,7 +123,7 @@ def grid_search(args, param_grid):
         len(param_grid["epsilon"])
     )
     
-    NUM_WORKERS = 20
+    NUM_WORKERS = 100
     
     param_combos = list(product(param_grid["alpha"], param_grid["beta"], param_grid["epsilon"]))
     args_list = [(alpha, beta, epsilon, predictions, args.dataset, args.gold_file, ground_truths) for alpha, beta, epsilon in param_combos]
@@ -153,9 +153,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     param_grid = {
-        "alpha": np.linspace(0.0, 2.0, 20), # Importance
-        "beta": np.linspace(0.0, 2.0, 20), # Relevance
-        "epsilon": np.linspace(0.0, 1.0, 11) # Uncertainty
+        "alpha": np.linspace(-0.5, 1.5, 10), # Importance
+        "beta": np.linspace(-0.5, 2.0, 10), # Relevance
+        "epsilon": np.linspace(-10.0, 10.0, 10) # Uncertainty
     }
 
     best_params = grid_search(args, param_grid)

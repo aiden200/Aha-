@@ -87,7 +87,7 @@ class LiveTestArguments(LiveTrainingArguments):
     )
     live_version: str = 'test'
     is_online_model: bool = True
-    grounding_mode: bool = True        # if set, only output probs, never generate reply
+    grounding_mode: bool = False        # if set, only output probs, never generate reply
     repetition_penalty: float = None
     stream_end_prob_threshold: float = None
     response_min_interval_frames: int = None

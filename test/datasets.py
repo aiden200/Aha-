@@ -30,7 +30,7 @@ class FastAndAccurateStreamingVideoQADataset(Dataset):
         print(self[random.randint(0, len(self)-1)])
 
     def load_video(self, video_file):
-        video_file = os.path.join(self.video_base_folder, video_file)
+        # video_file = os.path.join(self.video_base_folder, video_file)
         cap = cv2.VideoCapture(video_file)
         # Get original video properties
         input_fps = cap.get(cv2.CAP_PROP_FPS)
@@ -92,13 +92,24 @@ class FastAndAccurateStreamingVideoQADataset(Dataset):
         try:
             conversation = example['conversation']
             question_id = example['question_id']
-            if self.time_instruction_format is None:
-                video_frames, output_fps, video_duration = self.load_video(example['video'])
-            else:
-                video_frames, output_fps, video_duration, time_instruction = self.load_video(example['video'])
-                conversation[0]['content'] = time_instruction + '\n' + conversation[0]['content']
-            conversation.insert(0, {"role": "system", "content": self.system_prompt})
-            return question_id, video_frames, conversation, output_fps, video_duration
+            
+            check_names = [
+                os.path.join(self.video_base_folder, example['video']),
+                os.path.join(self.video_base_folder, example['video'])[:-4] + ".mp4"
+            ]
+            
+            for full_video_path in check_names:
+                if os.path.exists(full_video_path):
+                    if self.time_instruction_format is None:
+                        video_frames, output_fps, video_duration = self.load_video(full_video_path)
+                    else:
+                        video_frames, output_fps, video_duration, time_instruction = self.load_video(full_video_path)
+                        conversation[0]['content'] = time_instruction + '\n' + conversation[0]['content']
+                    conversation.insert(0, {"role": "system", "content": self.system_prompt})
+                    return question_id, video_frames, conversation, output_fps, video_duration
+
+            print(f"Video {example['video']} does not exist, skipping")
+            return None, None, None, None, None
         except Exception as e:
             print(f"error loading {example['question_id']} due to exception {e}, this example will be skipped")
             return None, None, None, None, None
@@ -108,12 +119,21 @@ class StreamingVideoQADatasetWithGenTime(FastAndAccurateStreamingVideoQADataset)
     def __getitem__(self, idx):
         example = self.data[idx]
         try:
+            check_names = [
+                os.path.join(self.video_base_folder, example['video']),
+                os.path.join(self.video_base_folder, example['video'])[:-4] + ".mp4"
+            ]
+            
             conversation = example['conversation']
             question_id = example['question_id']
-            video_frames, output_fps, video_duration = self.load_video(example['video'])
-            conversation.insert(0, {"role": "system", "content": self.system_prompt})
-            gen_time_list = [i['time'][1] for i in example['answer']]
-            return question_id, video_frames, conversation, output_fps, video_duration, gen_time_list
+            for full_video_path in check_names:
+                if os.path.exists(full_video_path):
+                    video_frames, output_fps, video_duration = self.load_video(full_video_path)
+                    conversation.insert(0, {"role": "system", "content": self.system_prompt})
+                    gen_time_list = [i['time'][1] for i in example['answer']]
+                    return question_id, video_frames, conversation, output_fps, video_duration, gen_time_list
+            print(f"Video {example['video']} does not exist, skipping")
+            return None, None, None, None, None
         except Exception as e:
             print(f"error loading {example['question_id']} due to exception {e}, this example will be skipped")
             return None, None, None, None, None

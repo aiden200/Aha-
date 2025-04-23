@@ -179,3 +179,96 @@ def build_live(
         model.currently_training = False
 
     return model, tokenizer
+
+
+
+
+            # print("In the correct if else bracket")
+
+            # old_peft_model = "wangyueqian/MMDuet"
+            # model.relevance_head = nn.Linear(3584, 2, bias=False)
+            # old_model = PeftModel.from_pretrained(model, old_peft_model)
+            # old_sd = old_model.state_dict()
+            # for name, param in old_model.named_parameters():
+            #     print(name, param.shape, param.dtype)
+            
+            # print(f"Informative_head weight")
+            # print(old_model.informative_head.weight)
+            # print(f"Uncertainty_head weight")
+            # print(old_model.uncertainty_head.weight)
+            # print("loaded MMDuet")
+
+
+            # lora_config = LoraConfig(
+            #     r=lora_r,
+            #     lora_alpha=lora_alpha,
+            #     target_modules=lora_modules,
+            #     lora_dropout=0.05,
+            #     task_type="CAUSAL_LM",
+            #     modules_to_save=finetune_modules,
+            #     inference_mode=True,
+            # )
+            # print(f'Loading in new model: {lora_config}')
+            # model.relevance_head = nn.Linear(3584, 1, bias=False)
+            # model = get_peft_model(model, lora_config)
+            # print("Loaded new model")
+
+
+            # new_sd = model.state_dict()
+            # filtered_sd = {}
+
+            # print("Starting transfer")
+            # for k, v in old_sd.items():
+            #     # Check for relevance head mismatch
+            #     if "relevance_head" in k:
+            #         if k in new_sd and v.shape != new_sd[k].shape:
+            #             print(f"Skipping (mismatch): {k}")
+            #             continue
+            #     if k in new_sd:
+            #         print(k, v)
+            #         filtered_sd[k] = v
+            # missing, unexpected = model.load_state_dict(filtered_sd, strict=False)
+            # for name, param in model.named_parameters():
+            #     print(name, param.shape, param.dtype)
+            # # Handles both PEFT-wrapped and non-wrapped
+            # def get_actual_layer(layer):
+            #     return layer.original_module if hasattr(layer, "original_module") else layer
+
+            # get_actual_layer(model.lm_head).weight.data = get_actual_layer(old_model.lm_head).weight.data.clone()
+            # get_actual_layer(model.informative_head).weight.data = get_actual_layer(old_model.informative_head).weight.data.clone()
+            # print(get_actual_layer(old_model.relevance_head).weight.data.shape, get_actual_layer(model.relevance_head).weight.data.shape)
+            # get_actual_layer(model.relevance_head).weight.data = get_actual_layer(old_model.relevance_head).weight.data.clone()[0:1, :]
+
+            # print("✅ Missing keys:", missing)
+            # print("✅ Unexpected keys:", unexpected)
+            # # === Step 4 (optional): Copy over partial weights for relevance_head ===
+
+            # # Example: copy first row of old weight matrix
+            # if "relevance_head.weight" in old_sd:
+            #     old_w = old_sd["relevance_head.weight"]
+            #     if model.relevance_head.original_module.weight.shape[0] == 1 and old_w.shape[0] == 2:
+            #         model.relevance_head.original_module.weight.data = old_w[0:1, :]
+            #         print("🔁 Copied over first row of relevance_head.weight")
+
+            # if "relevance_head.bias" in old_sd and model.relevance_head.bias is not None:
+            #     old_b = old_sd["relevance_head.bias"]
+            #     if model.relevance_head.bias.shape[0] == 1 and old_b.shape[0] == 2:
+            #         model.relevance_head.bias.data = old_b[0:1]
+            #         print("🔁 Copied over first entry of relevance_head.bias")
+            
+
+            
+
+
+            # assert torch.equal(model.model.model.layers[0].self_attn.k_proj.lora_A.default.weight.data, old_model.model.model.layers[0].self_attn.k_proj.lora_A.default.weight.data)
+            # assert torch.equal(get_actual_layer(model.lm_head).weight.data , get_actual_layer(old_model.lm_head).weight.data )
+            # assert torch.equal(get_actual_layer(model.informative_head).weight.data , get_actual_layer(old_model.informative_head).weight.data)
+            # assert torch.equal(get_actual_layer(model.relevance_head).weight.data , get_actual_layer(old_model.relevance_head).weight.data)
+            # # === Step 5: Save the LoRA + heads checkpoint ===
+
+            # save_dir = "old_weights/merged_weights"
+            # model.save_pretrained(save_dir, safe_serialization=True)
+            # tokenizer.save_pretrained(save_dir)
+            # print(f"✅ Saved modified LoRA model to {save_dir}")
+
+            # exit(0)

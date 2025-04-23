@@ -478,7 +478,7 @@ if __name__ == '__main__':
                     category_scores[category_name]["pred_dict"][video_uuid] = pred_scores
                 
                 # pred_scores = (pred_scores - np.min(pred_scores)) / (np.max(pred_scores) - np.min(pred_scores))
-                pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')
+                # pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')
                 pred_dict[video_uuid] = pred_scores
                 gt_dict[video_uuid] = ground_truth_frame_scores
 
@@ -489,7 +489,7 @@ if __name__ == '__main__':
             true_scores = gt_dict[first_video_uuid]
             predicted_scores = pred_dict[first_video_uuid]
             
-            print(predicted_scores)
+            # print(predicted_scores)
 
             # Plot
             plt.figure(figsize=(10, 5))
