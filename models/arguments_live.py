@@ -96,7 +96,7 @@ class LiveTestArguments(LiveTrainingArguments):
     consecutive_n_frames_threshold: int = 1
     running_list_length: int = 20
     start_idx: int = 0
-    end_idx: int = None
+    end_idx: int = 50
     time_instruction_format: str = None
     stream_end_score_sum_threshold: float = None
     remove_assistant_turns: bool = False        # if True, do not add assistant-generated content to input context (kv_cache)
