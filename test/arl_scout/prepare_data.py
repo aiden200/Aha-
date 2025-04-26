@@ -1,5 +1,8 @@
 import pandas as pd
 from pprint import pprint
+from PIL import Image
+import matplotlib.pyplot as plt
+from io import BytesIO
 
 
 import os
@@ -58,6 +61,29 @@ def prepare_frames_for_model(folder):
     files = os.listdir(folder)
     
 
+def generate_plot(up_to_idx, data):
+    fig, ax = plt.subplots(figsize=(5, 4))
+    times = [d["time"] for d in data[:up_to_idx+1]]
+    informative_scores = [d["informative_score"] for d in data[:up_to_idx+1] if d.get("role", "user") != "assistant"]
+    relevance_scores = [d["relevance_score"] for d in data[:up_to_idx+1] if d.get("role", "user") != "assistant"]
+    uncertainty_scores = [d["uncertainty_score"] for d in data[:up_to_idx+1] if d.get("role", "user") != "assistant"]
+
+    ax.plot(times, informative_scores, label="Informative Score")
+    ax.plot(times, relevance_scores, label="Relevance Score")
+    ax.plot(times, uncertainty_scores, label="Uncertainty Score")
+    ax.set_xlim(0, data[-1]["time"])  # Fix x-axis to full time span
+    ax.set_ylim(0, 1)  # Fix y-axis from 0 to 1
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Score")
+    ax.legend()
+    ax.grid(True)
+    plt.tight_layout()
+
+    buf = BytesIO()
+    plt.savefig(buf, format='png')
+    plt.close(fig)
+    buf.seek(0)
+    return Image.open(buf)
 
 
 def load_frame_segments(filepath):

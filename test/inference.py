@@ -1,7 +1,10 @@
 import collections, math, json, copy, random, os, csv, sys
 import cv2
 from dataclasses import asdict
+from io import BytesIO
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+from PIL import Image, ImageOps
 import numpy as np
 import torch
 import transformers
@@ -22,6 +25,7 @@ from llava.conversation import conv_templates
 
 from models import build_model_and_tokenizer, fast_greedy_generate, parse_args
 from .datasets import FastAndAccurateStreamingVideoQADataset
+from test.arl_scout.prepare_data import generate_plot
 
 
 class LiveInferForBenchmark:
@@ -292,8 +296,40 @@ def round_numbers(data, n):
 
 
 
-
-
+def load_individual_frames_for_testing(frame_folder, output_fps=1):
+    output_resolution=384
+    frame_names = os.listdir(frame_folder)
+    pad_color = (0, 0, 0)
+    frame_count = len(frame_names)
+    video_duration = frame_count
+    
+    frame_list = []
+    output_width = output_height = output_resolution
+    
+    for frame_name in tqdm(frame_names):
+        full_path = os.path.join(frame_folder, frame_name)
+        frame = Image.open(full_path)
+        width, height = frame.size
+        if width > height:
+            new_width = output_resolution
+            new_height = int((height / width) * output_resolution)
+        else:
+            new_height = output_resolution
+            new_width = int((width / height) * output_resolution)
+        
+        resized_frame = frame.resize((new_width, new_height))
+        left = (output_width - new_width) // 2
+        right = (output_width - new_width + 1) // 2
+        top = (output_height - new_height) //2 
+        bottom = (output_height - new_height + 1) //2
+        canvas = ImageOps.expand(resized_frame, border=(left, top, right, bottom), fill=pad_color)
+        canvas_np = np.array(canvas)
+        canvas_np = np.transpose(canvas_np, (2, 0, 1))
+        frame_list.append(canvas_np)
+    
+    
+    return torch.tensor(np.stack(frame_list)), output_fps, video_duration
+        
 
 
 def load_video_for_testing(video_file, output_fps=2, return_true_frames=False, max_num_frames=None):
@@ -525,6 +561,93 @@ if __name__ == '__main__':
         f_out = open(args.output_fname, 'w')
         f_out.write(json.dumps(results, indent=4))
         f_out.flush()
+    
+    elif args.test_dataset == "arl_scout":
+        frame_folder = args.input_dir
+        output_file = args.output_fname
+        caption = "what objects are in this room?"
+        query = random.choice(query_templates) % caption
+        # max_num_frames=100
+        max_num_frames = None
+        video_frames, fps, video_duration = load_individual_frames_for_testing(frame_folder)
+        
+        infer = LiveInferForBenchmark(args)
+        if video_frames == None:
+            raise ValueError("Error, no video frames")
+        conversation = list()
+        conversation.append({"role": "system", "content": system_prompt})
+        conversation.append({'role': 'user', 'content': query, 'time': 0})
+
+
+        infer.reset()
+        infer.set_fps(fps=fps)
+        infer.input_video_stream(video_frames)
+        infer.input_query_stream(conversation)
+        model_response_list = infer.inference()
+        results = round_numbers(infer.debug_data_list, 3)
+        with open(output_file, "w") as f:
+            json.dump(results, f)
+        
+        times = [d["time"] for d in results]
+        informative_scores = [d["informative_score"] for d in results]
+        relevance_scores = [d["relevance_score"] for d in results]
+        uncertainty_scores = [d["uncertainty_score"] for d in results]
+
+        # Create the plot
+        plt.figure(figsize=(10, 6))
+        plt.plot(times, informative_scores, label="Informative Score")
+        plt.plot(times, relevance_scores, label="Relevance Score")
+        plt.plot(times, uncertainty_scores, label="Uncertainty Score")
+
+        plt.xlabel("Time")
+        plt.ylabel("Score")
+        plt.title("Scores over Time")
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(os.path.join(frame_folder, "visualization.png"))
+
+        os.makedirs(os.path.join(frame_folder, "stiched"), exist_ok=True)
+        
+        for idx in range(len(results)):
+            # Load frame
+            frame_path = os.path.join(frame_folder, "stiched", f"frame_{idx}.png")
+            frame_img = Image.open(frame_path).convert("RGB")
+
+            # Generate plot
+            plot_img = generate_plot(idx, results)
+
+            # Resize plot to match frame height
+            plot_img = plot_img.resize((plot_img.width * frame_img.height // plot_img.height, frame_img.height))
+
+            # Stitch side-by-side
+            stitched_width = frame_img.width + plot_img.width
+            stitched_img = Image.new("RGB", (stitched_width, frame_img.height))
+            stitched_img.paste(frame_img, (0, 0))
+            stitched_img.paste(plot_img, (frame_img.width, 0))
+
+            # Save stitched image
+            stitched_img.save(os.path.join(frame_folder, "stiched", f"stitched_{idx}.png"))
+        
+        fps = 1
+
+        # Read first frame to get dimensions
+        frame = cv2.imread(frame_paths[0])
+        height, width, layers = frame.shape
+
+        # Initialize video writer
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # 'mp4v' for .mp4 file
+        video = cv2.VideoWriter(os.path.join(frame_folder, "stiched_video.mp4"), fourcc, fps, (width, height))
+
+        # Write each frame
+        for frame_path in frame_paths:
+            frame = cv2.imread(frame_path)
+            video.write(frame)
+
+        video.release()
+        print(f"Video saved to {output_video_path}")
+        
+        print(f"Results saved at: {output_file}")
+    
     else:
         dataset = FastAndAccurateStreamingVideoQADataset(
             data_file=args.test_fname, video_base_folder=args.input_dir,
