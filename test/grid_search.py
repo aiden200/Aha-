@@ -21,6 +21,7 @@ from .dvc.eval_dvc import eval_with_files
 from .qvh.eval import eval_submission, load_jsonl
 from .datasets import FastAndAccurateStreamingVideoQADataset
 from .inference import LiveInferForBenchmark, DoNothingDataCollator, round_numbers
+from .evaluate import normalize_pred_list, is_time_in_span, calculate_iou, qvh_to_charades_format
 import concurrent.futures
 from .hisum.hisum_eval import hisum_evaluate_scores
 from .tvsum.tvsum_utils import *
@@ -38,6 +39,9 @@ def score_worker(args_tuple):
     
     elif dataset == "qvh":
         score = qvh_eval(predictions, ground_truths, alpha, beta, epsilon)
+    
+    elif dataset == "charades":
+        score = charades_eval(predictions, ground_truths, alpha, beta, epsilon)
 
     return score, {"alpha": alpha, "beta": beta, "epsilon": epsilon}
 
@@ -192,6 +196,42 @@ def qvh_eval(predictions, ground_truths, alpha, beta, epsilon):
     return score
 
 
+def charades_eval(predictions, ground_truths, alpha, beta, epsilon):
+    iou_scores_list_dict = {threshold: list() for threshold in np.arange(0.30, 0.71, 0.02)}
+    for pred_example in predictions:
+        gold_example = ground_truths[pred_example['question_id']]
+        video_times, pred_scores = list(), list()
+        for e in pred_example['debug_data']:
+            video_times.append(e['time'])
+            if 'relevance_score' in e:
+                pred_scores.append(alpha * e['informative_score'] \
+                                    + beta * e['relevance_score'] \
+                                    + epsilon * e['uncertainty_score'])
+            else:
+                pred_scores.append(0)
+
+        pred_scores = normalize_pred_list(pred_scores)
+        gold_scores = [is_time_in_span(time, gold_example['timestamps']) for time in video_times]
+        for threshold in iou_scores_list_dict:
+            iou = calculate_iou(pred_scores, gold_scores, threshold, debug_data=pred_example['question_id'])
+            iou_scores_list_dict[threshold].append(iou)
+
+    for threshold in iou_scores_list_dict:
+        mean_iou = np.mean(iou_scores_list_dict[threshold]) * 100
+        recall_0_3 = np.mean([e >= 0.3 for e in iou_scores_list_dict[threshold]]) * 100
+        recall_0_5 = np.mean([e >= 0.5 for e in iou_scores_list_dict[threshold]]) * 100
+        recall_0_7 = np.mean([e >= 0.7 for e in iou_scores_list_dict[threshold]]) * 100
+        # print(f'score threshold = {threshold:.2f}: {mean_iou:.2f}/{recall_0_3:.2f}/{recall_0_5:.2f}/{recall_0_7:.2f}')
+
+    best_among_all_thres = [max([iou_list[i] for iou_list in iou_scores_list_dict.values()]) for i in range(len(predictions))]
+    mean_iou = np.mean(best_among_all_thres) * 100
+    recall_0_3 = np.mean([e >= 0.3 for e in best_among_all_thres]) * 100
+    recall_0_5 = np.mean([e >= 0.5 for e in best_among_all_thres]) * 100
+    recall_0_7 = np.mean([e >= 0.7 for e in best_among_all_thres]) * 100
+    # print(f'best among all thresholds: {mean_iou:.2f}/{recall_0_3:.2f}/{recall_0_5:.2f}/{recall_0_7:.2f}')
+    return recall_0_5
+
+
 def grid_search_with_inference(args, param_grid):
 
     with open("paths.yaml", "r") as f:
@@ -295,7 +335,7 @@ def grid_search_with_inference(args, param_grid):
         with open(gs_output_file, 'w') as f:
             json.dump(all_results, f, indent=4)
     
-    all_args[args.test_dataset] = threshold
+    all_args[args.test_dataset]["threshold"] = threshold
     
     with open(all_args["grid_search"]["save_path"], "w") as f:
         json.dump(best_args_json, f)
@@ -358,6 +398,14 @@ def grid_search(args, param_grid):
         predictions = [json.loads(line) for line in open(args.pred_file)]
         ground_truths = load_jsonl(args.gold_file)
     
+    elif args.test_dataset == "charades":
+        predictions = [json.loads(line) for line in open(args.pred_file)]
+        ground_truths = json.load(open(args.gold_file))
+        if 'answer' in ground_truths[0] and 'saliency_scores' in ground_truths[0]['answer']:
+            # this is a qvh dataset, convert it to charades format
+            ground_truths = [qvh_to_charades_format(e) for e in ground_truths]
+        ground_truths = {e['question_id']: e for e in ground_truths}
+    
     total_combinations = (
         len(param_grid["alpha"]) *
         len(param_grid["beta"]) *
@@ -394,11 +442,9 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--test_dataset", type=str, required=True, help="The type of dataset used")
-    parser.add_argument("--pred_file", type=str, required=False, help="Path to predictions JSON file.")
-    parser.add_argument("--gold_file", type=str, required=False, help="Path to gold standard HDF5 file.")
     args = parser.parse_args()
 
-    non_eval_metrics = ["hisum", "tvsum", "qvh"]
+    non_eval_metrics = ["hisum", "tvsum", "qvh", "charades"]
 
     if args.test_dataset in non_eval_metrics:
         param_grid = {
@@ -409,7 +455,7 @@ if __name__ == "__main__":
         best_params = grid_search(args, param_grid)
     elif args.test_dataset =="youcook2":
         param_grid = {
-            "threshold": np.linspace(2, 20, 20)
+            "threshold": np.linspace(0, 5, 40)
         }
         best_params = grid_search_with_inference(args, param_grid)
     

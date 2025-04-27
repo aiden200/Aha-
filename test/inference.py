@@ -676,6 +676,13 @@ if __name__ == '__main__':
         print(f"Results saved at: {output_file}")
     
     else:
+        with open("paths.yaml", "r") as f:
+            dataset_args = yaml.safe_load(f)[args.test_dataset]
+        
+        if "threshold" in dataset_args:
+            print(f"Dataset: {args.test_dataset} is using grid search param: threshold {dataset_args['threshold']}")
+            args.stream_end_score_sum_threshold = dataset_args["threshold"]
+
         dataset = FastAndAccurateStreamingVideoQADataset(
             data_file=args.test_fname, video_base_folder=args.input_dir,
             start_idx=args.start_idx, end_idx=args.end_idx,
@@ -689,7 +696,8 @@ if __name__ == '__main__':
         if args.is_online_model:
             if not args.grounding_mode:
                 # Youcook2
-                print("in")
+                
+
                 for data_i, data in enumerate(tqdm(dataloader)):
                     question_id, video_frames, conversation, fps, video_duration = data
                     if question_id is None: continue

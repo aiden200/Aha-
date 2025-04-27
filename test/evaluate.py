@@ -204,6 +204,14 @@ if __name__ == '__main__':
     
 
     if args.func == 'magqa':
+        with open("outputs/grid_search_params.json", "r") as f:
+            best_params = json.load(f)
+        
+        args.alpha = best_params["magqa"]["alpha"]
+        args.beta = best_params["magqa"]["beta"]
+        args.epsilon = best_params["magqa"]["epsilon"]
+
+
         pred_examples = [json.loads(line) for line in open(args.pred_file)]
         if args.prev_output_file is not None:
             prev_output_examples = [json.loads(line) for line in open(args.prev_output_file)]
@@ -317,6 +325,13 @@ if __name__ == '__main__':
         f_out.close()
 
     elif args.func == 'qvh':
+        with open("outputs/grid_search_params.json", "r") as f:
+            best_params = json.load(f)
+        
+        args.alpha = best_params["qvh"]["alpha"]
+        args.beta = best_params["qvh"]["beta"]
+        args.epsilon = best_params["qvh"]["epsilon"]
+
         pred_examples = [json.loads(line) for line in open(args.pred_file)]
         gold_examples = load_jsonl(args.gold_file)
         final_results = list()
@@ -371,6 +386,13 @@ if __name__ == '__main__':
     elif args.func == 'grounding':
         pred_examples = [json.loads(line) for line in open(args.pred_file)]
         gold_examples = json.load(open(args.gold_file))
+        with open("outputs/grid_search_params.json", "r") as f:
+            best_params = json.load(f)
+        
+        args.alpha = best_params["charades"]["alpha"]
+        args.beta = best_params["charades"]["beta"]
+        args.epsilon = best_params["charades"]["epsilon"]
+
         if 'answer' in gold_examples[0] and 'saliency_scores' in gold_examples[0]['answer']:
             # this is a qvh dataset, convert it to charades format
             gold_examples = [qvh_to_charades_format(e) for e in gold_examples]
@@ -385,9 +407,11 @@ if __name__ == '__main__':
                     gold_example = gold_examples[pred_example['question_id']]
                     video_times, pred_scores = list(), list()
                     for e in pred_example['debug_data']:
-                        video_times.append(e['video_time'])
+                        video_times.append(e['time'])
                         if 'relevance_score' in e:
-                            pred_scores.append(e['relevance_score'][1])
+                            pred_scores.append(args.alpha * e['informative_score'] \
+                                               + args.beta * e['relevance_score'] \
+                                                + args.epsilon * e['uncertainty_score'])
                         else:
                             pred_scores.append(0)
 
@@ -411,7 +435,9 @@ if __name__ == '__main__':
                 recall_0_3 = np.mean([e >= 0.3 for e in best_among_all_thres]) * 100
                 recall_0_5 = np.mean([e >= 0.5 for e in best_among_all_thres]) * 100
                 recall_0_7 = np.mean([e >= 0.7 for e in best_among_all_thres]) * 100
+                print("Mean IOU/R@0.3/R@0.5/R@0.7")
                 print(f'best among all thresholds: {mean_iou:.2f}/{recall_0_3:.2f}/{recall_0_5:.2f}/{recall_0_7:.2f}')
+
             if args.output_file:
                 json.dump(final_results, open(args.output_file, 'w'), indent=4)
 
@@ -436,6 +462,15 @@ if __name__ == '__main__':
             print(f'score: {mean_iou:.2f}/{recall_0_3:.2f}/{recall_0_5:.2f}/{recall_0_7:.2f}')
     
     elif args.func == "hisum":
+        with open("outputs/grid_search_params.json", "r") as f:
+            best_params = json.load(f)
+        
+        args.alpha = best_params["hisum"]["alpha"]
+        args.beta = best_params["hisum"]["beta"]
+        args.epsilon = best_params["hisum"]["epsilon"]
+
+        print(args.alpha, args.beta, args.epsilon)
+
         with open(args.pred_file, "r") as f:
             predictions = json.load(f)
         with h5py.File(args.gold_file, "r") as hdf:
@@ -507,6 +542,12 @@ if __name__ == '__main__':
             plt.savefig("hisum_resuts.png")
 
     elif args.func == 'tvsum': 
+        with open("outputs/grid_search_params.json", "r") as f:
+            best_params = json.load(f)
+        
+        args.alpha = best_params["tvsum"]["alpha"]
+        args.beta = best_params["tvsum"]["beta"]
+        args.epsilon = best_params["tvsum"]["epsilon"]
         with open(args.pred_file, "r") as f:
             predictions = json.load(f)
         
