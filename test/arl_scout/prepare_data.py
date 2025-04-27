@@ -61,7 +61,7 @@ def prepare_frames_for_model(folder):
     files = os.listdir(folder)
     
 
-def generate_plot(up_to_idx, data):
+def generate_plot(up_to_idx, data, agent_response):
     fig, ax = plt.subplots(figsize=(5, 4))
     times = [d["time"] for d in data[:up_to_idx+1]]
     informative_scores = [d["informative_score"] for d in data[:up_to_idx+1] if d.get("role", "user") != "assistant"]
@@ -77,6 +77,18 @@ def generate_plot(up_to_idx, data):
     ax.set_ylabel("Score")
     ax.legend()
     ax.grid(True)
+
+    if agent_response:
+        ax.text(
+            0.01, 0.95,  # x, y position (axes fraction)
+            f"Agent: {agent_response}",
+            transform=ax.transAxes,  # important: use axes coordinates, not data
+            fontsize=8,
+            va='top', ha='left',
+            wrap=True,
+            bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray')
+        )
+
     plt.tight_layout()
 
     buf = BytesIO()

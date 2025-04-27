@@ -169,7 +169,10 @@ class LiveInferForBenchmark:
         self.frame_idx += 1
         self.num_frames_no_reply += 1
         informative_score = outputs.informative_logits[0,-1].softmax(dim=-1)[1].item()
-        relevance_score = outputs.relevance_logits[0, -1].item()
+        if outputs.relevance_logits.shape[-1] == 2:
+            relevance_score = outputs.relevance_logits[0, -1].softmax(dim=-1)[1].item()
+        else:
+            relevance_score = outputs.relevance_logits[0, -1].item()
         uncertainty_score = torch.exp(outputs.uncertainty[0, -1]).item()
         self.last_role = 'stream'
         return {"informative_score": informative_score, "relevance_score": relevance_score}, uncertainty_score
@@ -306,8 +309,8 @@ def load_individual_frames_for_testing(frame_folder, output_fps=1):
     frame_list = []
     output_width = output_height = output_resolution
     
-    for frame_name in tqdm(frame_names):
-        full_path = os.path.join(frame_folder, frame_name)
+    for i in tqdm(range(len(frame_names))):
+        full_path = os.path.join(frame_folder, f"frame{i:03d}.jpg")
         frame = Image.open(full_path)
         width, height = frame.size
         if width > height:
@@ -565,6 +568,10 @@ if __name__ == '__main__':
     elif args.test_dataset == "arl_scout":
         frame_folder = args.input_dir
         output_file = args.output_fname
+        parent_dir = os.path.dirname(output_file)
+
+
+
         caption = "what objects are in this room?"
         query = random.choice(query_templates) % caption
         # max_num_frames=100
@@ -584,6 +591,10 @@ if __name__ == '__main__':
         infer.input_video_stream(video_frames)
         infer.input_query_stream(conversation)
         model_response_list = infer.inference()
+        model_response_formated = {}
+        for response in model_response_list:
+            if response["role"] == "assistant":
+                model_response_formated[response["time"]] = response["content"]  
         results = round_numbers(infer.debug_data_list, 3)
         with open(output_file, "w") as f:
             json.dump(results, f)
@@ -604,20 +615,27 @@ if __name__ == '__main__':
         plt.title("Scores over Time")
         plt.legend()
         plt.grid(True)
-        plt.savefig(os.path.join(frame_folder, "visualization.png"))
+        plt.savefig(os.path.join(parent_dir, "visualization.png"))
 
-        os.makedirs(os.path.join(frame_folder, "stiched"), exist_ok=True)
+        os.makedirs(os.path.join(parent_dir, "stiched"), exist_ok=True)
+
+        stiched_img_paths = []
+        print(model_response_formated)
         
         for idx in range(len(results)):
             # Load frame
-            frame_path = os.path.join(frame_folder, "stiched", f"frame_{idx}.png")
+            frame_path = os.path.join(frame_folder, f"frame{idx:03d}.jpg")
             frame_img = Image.open(frame_path).convert("RGB")
+            
+            agent_response = None
+            if idx in model_response_formated:
+                agent_response = model_response_formated[idx]
 
             # Generate plot
-            plot_img = generate_plot(idx, results)
+            plot_img = generate_plot(idx, results, agent_response)
 
             # Resize plot to match frame height
-            plot_img = plot_img.resize((plot_img.width * frame_img.height // plot_img.height, frame_img.height))
+            plot_img = plot_img.resize((plot_img.width * frame_img.height // plot_img.height, frame_img.height), resample=Image.LANCZOS)
 
             # Stitch side-by-side
             stitched_width = frame_img.width + plot_img.width
@@ -626,21 +644,25 @@ if __name__ == '__main__':
             stitched_img.paste(plot_img, (frame_img.width, 0))
 
             # Save stitched image
-            stitched_img.save(os.path.join(frame_folder, "stiched", f"stitched_{idx}.png"))
+            stiched_img_path = os.path.join(parent_dir, "stiched", f"stitched_{idx}.jpg")
+            stiched_img_paths.append(stiched_img_path)
+            stitched_img.save(stiched_img_path)
         
         fps = 1
 
         # Read first frame to get dimensions
-        frame = cv2.imread(frame_paths[0])
+        frame = cv2.imread(stiched_img_paths[0])
         height, width, layers = frame.shape
+
+        output_video_path = os.path.join(parent_dir, "arl_scout_results_stiched_video.mp4")
 
         # Initialize video writer
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # 'mp4v' for .mp4 file
-        video = cv2.VideoWriter(os.path.join(frame_folder, "stiched_video.mp4"), fourcc, fps, (width, height))
+        video = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
 
         # Write each frame
-        for frame_path in frame_paths:
-            frame = cv2.imread(frame_path)
+        for stiched_img in stiched_img_paths:
+            frame = cv2.imread(stiched_img)
             video.write(frame)
 
         video.release()
