@@ -1,0 +1,40 @@
+{
+    "tvsum": {
+        "alpha": 1.37,
+        "beta": 0.52,
+        "epsilon": 0.0
+    },
+    "hisum": {
+        "alpha": 0.0,
+        "beta": 1.5555,
+        "epsilon": 1.0
+    },
+    "youcook2": {
+        "alpha": 1.0,
+        "beta": 0.0,
+        "epsilon": 0.0,
+        "threshold": 2
+    },
+    "qvh": {
+        "alpha": 1.5,
+        "beta": 1.4444,
+        "epsilon": -1.111
+    },
+    "magqa": {
+        "alpha": 0.0,
+        "beta": 1.0,
+        "epsilon": 0.0,
+        "threshold": 2
+    },
+    "charades": {
+        "alpha": 0.0,
+        "beta": 1.0,
+        "epsilon": 0.0
+    },
+    "arl_scout": {
+        "alpha": 0.0,
+        "beta": 1.5555,
+        "epsilon": 1.0,
+        "threshold": 2
+    }
+}

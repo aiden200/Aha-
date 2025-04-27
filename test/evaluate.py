@@ -1,4 +1,4 @@
-import os, sys, re, requests, random
+import os, sys, re, requests, random, yaml
 import json
 from tqdm import tqdm
 import argparse
@@ -201,6 +201,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print(args)
 
+    
+
     if args.func == 'magqa':
         pred_examples = [json.loads(line) for line in open(args.pred_file)]
         if args.prev_output_file is not None:
@@ -307,14 +309,14 @@ if __name__ == '__main__':
                     score_matrix[row_indices.flatten(), col_indices.flatten()] = score
             example['evaluator_output'] = score_matrix.tolist()
             example['answer'] = gold_list
-            example['answer_time'] = [turn['time'] for turn in gold_dict[example['question_id']]['answer']]     # 0926 中午 TODO: multiturn的answer time应该修改一下
+            example['answer_time'] = [turn['time'] for turn in gold_dict[example['question_id']]['answer']] 
             f_out.write(json.dumps(example) + '\n')
 
             if example_i % 10 == 0:
                 f_out.flush()
         f_out.close()
 
-    elif args.func == 'qvh_highlight':
+    elif args.func == 'qvh':
         pred_examples = [json.loads(line) for line in open(args.pred_file)]
         gold_examples = load_jsonl(args.gold_file)
         final_results = list()
@@ -325,27 +327,24 @@ if __name__ == '__main__':
 
                 reformatted_pred_list = list()
                 for example in pred_examples:
-                    frame_interval = example['debug_data'][1]['video_time'] - example['debug_data'][0]['video_time']
+                    
+                    frame_interval = example['debug_data'][1]['time'] - example['debug_data'][0]['time']
                     two_sec_frames = int(2 / frame_interval)
                     video_times, pred_scores = list(), list()
                     for e in example['debug_data']:
-                        video_times.append(e['video_time'])
+                        video_times.append(e['time'])
                         if 'relevance_score' in e:
-                            pred_scores.append(e['relevance_score'][1])
+                            # pred_scores.append(e['relevance_score'][1])
+                            pred_scores.append(
+                                args.alpha * e['informative_score'] \
+                                    + args.beta * e['relevance_score'] \
+                                        + args.epsilon * e['uncertainty_score'])
                         else:
                             pred_scores.append(0)
                     pred_scores = smooth_pred_list(pred_scores, smooth_window_size)
                     pred_saliency_scores = [sum(pred_scores[i: i + two_sec_frames]) for i in range(0, len(pred_scores), two_sec_frames)]
                     reformatted_pred_list.append({'qid': example['question_id'], 'pred_saliency_scores': pred_saliency_scores})
 
-                    # DEPRECATED: this used to evaluate a list of clip scores; but our model can not generate a list of clip scores
-                    # relevance_scores = [p - args.relevance_threshold for p in pred_scores]
-                    # relevant_windows = find_continuous_positive_segments(relevance_scores, args.min_relevance_frames)
-                    # if len(relevant_windows):
-                    #     max_relevant_score, min_relevant_score = max([e[2] for e in relevant_windows]), min([e[2] for e in relevant_windows])
-                    #     if max_relevant_score == min_relevant_score: min_relevant_score = 0
-                    #     relevant_windows = [[e[0], e[1], int((e[2] - min_relevant_score) / (max_relevant_score - min_relevant_score) * 4.99)] for e in relevant_windows]
-                    #     reformatted_pred_list.append({'qid': example['question_id'], 'pred_relevant_windows': relevant_windows})
 
                 results = eval_submission(reformatted_pred_list, gold_examples, match_number=False)
                 print(results)
@@ -478,7 +477,10 @@ if __name__ == '__main__':
                     category_scores[category_name]["pred_dict"][video_uuid] = pred_scores
                 
                 # pred_scores = (pred_scores - np.min(pred_scores)) / (np.max(pred_scores) - np.min(pred_scores))
-                pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')
+                # pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')
+                # kernel = np.ones(5) / 5
+                # pred_scores = np.convolve(pred_scores, kernel, mode='full')[:len(pred_scores)]
+                
                 pred_dict[video_uuid] = pred_scores
                 gt_dict[video_uuid] = ground_truth_frame_scores
 
@@ -535,7 +537,9 @@ if __name__ == '__main__':
                 # print(e['relevance_score'], vid_ground_truth[true_frame])
             
             pred_scores = np.array(pred_scores)
-            pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')
+            # pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')
+            # kernel = np.ones(5) / 5
+            # relevance_scores = np.convolve(relevance_scores, kernel, mode='full')[:len(relevance_scores)]
         
 
             ground_truth_frame_scores = np.array(ground_truth_frame_scores)

@@ -139,9 +139,11 @@ def load_frame_segments(filepath):
     return frame_segments
 
 
-samples = load_frame_segments("datasets/ARL-SCOUT/data/iSCOUT/p1.01_main1_iscout.xlsx")
-tagged_segments = tag_important_segments(samples)
-top = sorted(tagged_segments, key=lambda x: x['importance_score'], reverse=True)
+if __name__ == "__main__":
 
-pprint(top[:3])
-# pprint(samples)
+    samples = load_frame_segments("datasets/ARL-SCOUT/data/iSCOUT/p1.01_main1_iscout.xlsx")
+    tagged_segments = tag_important_segments(samples)
+    top = sorted(tagged_segments, key=lambda x: x['importance_score'], reverse=True)
+
+    pprint(top[:3])
+    # pprint(samples)

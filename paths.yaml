@@ -1,0 +1,55 @@
+youcook2:
+  test_dataset: youcook2
+  input_dir: /data/youcook/YouCookII/raw_videos/
+  frame_fps: 0.5
+  max_num_frames: 200
+  test_fname: datasets/youcook2/annotations/val-random_prompt.json
+  stream_end_score_sum_threshold: 5
+  remove_assistant_turns: true
+  start_idx: 0
+  output_dir: outputs/aha
+  func: dense_captioning
+  gold_file: datasets/youcook2/annotations/val-random_prompt.json
+  gridsearch_output_file: gridsearch_results.json
+  score_heads: informative_score
+
+
+pretrained_args:
+  lora_pretrained: aiden200/aha
+  llm_pretrained: lmms-lab/llava-onevision-qwen2-7b-ov
+  remove_assistant_turns: true
+  stream_end_score_sum_threshold: 5
+  grounding_mode: bool = False
+  end_idx: None
+  bf16: true
+
+
+grid_search:
+  save_path: outputs/grid_search_params.json
+
+
+arl_scout:
+  skip_eval: false
+  output_dir: outputs/arl_scout
+  anno_file: test/arl_scout/p1.02_main1/all-images
+  input_dir: test/arl_scout/p1.02_main1/all-images 
+  stream_end_score_sum_threshold: 2
+  remove_assistant_turns: true
+  score_heads: informative_score
+  frame_fps: 1
+  output_fname: arl_scout_test-random_prompt-pred.json
+
+
+
+tvsum:
+  output_dir: outputs/hisum_eval/eval
+  pred_file: tvsum_test-random_prompt-pred.json
+  gold_file: datasets/tvsum/ydata-tvsum50-v1_1/data/ydata-tvsum50-anno.tsv
+
+
+hisum:
+  output_dir: outputs/hisum_eval
+  pred_file: hisum_test-random_prompt-pred.json 
+  gold_file: /data/yt8m/annotations/mr_hisum.h5
+
+

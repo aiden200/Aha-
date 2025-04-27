@@ -1,4 +1,4 @@
-import collections, math, json, copy, random, os, csv, sys
+import collections, math, json, copy, random, os, csv, sys, yaml
 import cv2
 from dataclasses import asdict
 from io import BytesIO
@@ -569,40 +569,44 @@ if __name__ == '__main__':
         frame_folder = args.input_dir
         output_file = args.output_fname
         parent_dir = os.path.dirname(output_file)
+        skip = True
+
+        if not skip:
+            caption = "what objects are in this room?"
+            query = random.choice(query_templates) % caption
+            # max_num_frames=100
+            max_num_frames = None
+            video_frames, fps, video_duration = load_individual_frames_for_testing(frame_folder)
+            
+            infer = LiveInferForBenchmark(args)
+            if video_frames == None:
+                raise ValueError("Error, no video frames")
+            conversation = list()
+            conversation.append({"role": "system", "content": system_prompt})
+            conversation.append({'role': 'user', 'content': query, 'time': 0})
 
 
-
-        caption = "what objects are in this room?"
-        query = random.choice(query_templates) % caption
-        # max_num_frames=100
-        max_num_frames = None
-        video_frames, fps, video_duration = load_individual_frames_for_testing(frame_folder)
-        
-        infer = LiveInferForBenchmark(args)
-        if video_frames == None:
-            raise ValueError("Error, no video frames")
-        conversation = list()
-        conversation.append({"role": "system", "content": system_prompt})
-        conversation.append({'role': 'user', 'content': query, 'time': 0})
-
-
-        infer.reset()
-        infer.set_fps(fps=fps)
-        infer.input_video_stream(video_frames)
-        infer.input_query_stream(conversation)
-        model_response_list = infer.inference()
-        model_response_formated = {}
-        for response in model_response_list:
-            if response["role"] == "assistant":
-                model_response_formated[response["time"]] = response["content"]  
-        results = round_numbers(infer.debug_data_list, 3)
-        with open(output_file, "w") as f:
-            json.dump(results, f)
+            infer.reset()
+            infer.set_fps(fps=fps)
+            infer.input_video_stream(video_frames)
+            infer.input_query_stream(conversation)
+            model_response_list = infer.inference()
+            model_response_formated = {}
+            for response in model_response_list:
+                if response["role"] == "assistant":
+                    model_response_formated[response["time"]] = response["content"]  
+            results = round_numbers(infer.debug_data_list, 3)
+            with open(output_file, "w") as f:
+                json.dump(results, f)
+        else:
+            with open(output_file, "r") as f:
+                results = json.load(f)
         
         times = [d["time"] for d in results]
         informative_scores = [d["informative_score"] for d in results]
         relevance_scores = [d["relevance_score"] for d in results]
         uncertainty_scores = [d["uncertainty_score"] for d in results]
+        # relevance_scores = np.convolve(relevance_scores, np.ones(5)/5, mode='same')
 
         # Create the plot
         plt.figure(figsize=(10, 6))
@@ -620,7 +624,8 @@ if __name__ == '__main__':
         os.makedirs(os.path.join(parent_dir, "stiched"), exist_ok=True)
 
         stiched_img_paths = []
-        print(model_response_formated)
+        if not skip:
+            print(model_response_formated)
         
         for idx in range(len(results)):
             # Load frame
@@ -628,7 +633,7 @@ if __name__ == '__main__':
             frame_img = Image.open(frame_path).convert("RGB")
             
             agent_response = None
-            if idx in model_response_formated:
+            if not skip and idx in model_response_formated:
                 agent_response = model_response_formated[idx]
 
             # Generate plot
