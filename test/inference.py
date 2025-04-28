@@ -430,6 +430,14 @@ if __name__ == '__main__':
         print("Skipping evaluation")
         # We don't want to reevaluate
         sys.exit() 
+    
+    all_arg_fields = ["is_online_model", "grounding_mode", "stream_end_prob_threshold", 
+                      "response_min_interval_frames", "start_idx", "end_idx", "stream_end_score_sum_threshold",
+                      "remove_assistant_turns", "score_heads", "skip_eval", "input_dir", "test_fname", "output_fname", 
+                      "test_dataset", "caption_metadata_file", "video_metadata_file", "hisum_h5_file", "anno_file",
+                      "frame_fps", "max_num_frames", "func"]
+
+
     print(args)
 
     # infer = LiveInferForBenchmark(args)
@@ -691,6 +699,7 @@ if __name__ == '__main__':
         )
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4, collate_fn=DoNothingDataCollator())
         f_out = open(args.output_fname, 'w')
+
         
         infer = LiveInferForBenchmark(args)
         if args.is_online_model:

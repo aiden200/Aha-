@@ -284,7 +284,7 @@ def grid_search_with_inference(args, param_grid):
     
         
 
-    for threshold in param_grid["threshold"]:
+    for threshold in tqdm(param_grid["threshold"]):
         infer.reset()
         test_args.output_fname = f"{yc_args['output_dir']}/eval/youcook2_val-thres_sum_{str(threshold)}-rm_ass_turns-pred.json"
 
@@ -300,7 +300,7 @@ def grid_search_with_inference(args, param_grid):
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4, collate_fn=DoNothingDataCollator())
         f_out = open(test_args.output_fname, 'w')
         
-        for data_i, data in enumerate(tqdm(dataloader)):
+        for data_i, data in enumerate(dataloader):
             question_id, video_frames, conversation, fps, video_duration = data
             if question_id is None: continue
             infer.reset()
@@ -448,14 +448,14 @@ if __name__ == "__main__":
 
     if args.test_dataset in non_eval_metrics:
         param_grid = {
-            "alpha": np.linspace(-0.5, 1.5, 10), # Importance
-            "beta": np.linspace(-0.5, 2.0, 10), # Relevance
-            "epsilon": np.linspace(-10.0, 10.0, 10) # Uncertainty
+            "alpha": np.linspace(-0.5, 2.0, 20), # Importance
+            "beta": np.linspace(-0.5, 2.0, 20), # Relevance
+            "epsilon": np.linspace(-10.0, 10.0, 20) # Uncertainty
         }
         best_params = grid_search(args, param_grid)
     elif args.test_dataset =="youcook2":
         param_grid = {
-            "threshold": np.linspace(0, 5, 40)
+            "threshold": np.linspace(0, 5, 10)
         }
         best_params = grid_search_with_inference(args, param_grid)
     

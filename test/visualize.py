@@ -1,4 +1,4 @@
-import argparse, json
+import argparse, json, yaml
 from .tvsum.tvsum_utils import *
 from .hisum.hisum_eval import *
 import matplotlib.pyplot as plt
@@ -22,8 +22,31 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print(args)
 
+
+    with open("paths.yaml", "r") as f:
+        dataset_args = yaml.safe_load(f)
+
+    with open(dataset_args["grid_search"]["save_path"], "r") as f:
+        best_args_json = json.load(f)
+
+    tvsum_alpha = best_args_json["tvsum"]["alpha"]
+    tvsum_beta = best_args_json["tvsum"]["beta"]
+    tvsum_epsilon = best_args_json["tvsum"]["epsilon"]
+
+    hisum_alpha = best_args_json["hisum"]["alpha"]
+    hisum_beta = best_args_json["hisum"]["beta"]
+    hisum_epsilon = best_args_json["hisum"]["epsilon"]
+
+    dataset_output_dir = dataset_args["hisum"]["output_dir"]
+    args.hisum_gold_file = dataset_args["hisum"]["gold_file"]
+    args.hisum_pred_file = os.path.join(dataset_output_dir, dataset_args["hisum"]["pred_file"]) 
+
+    dataset_output_dir = dataset_args["tvsum"]["output_dir"]
+    args.tvsum_gold_file = dataset_args["tvsum"]["gold_file"]
+    args.tvsum_pred_file = os.path.join(dataset_output_dir, dataset_args["tvsum"]["pred_file"]) 
+
     
-    if args.dataset == "visualize_sota_scores":
+    if args.dataset == "hisum_visualize_sota_scores":
         with open(args.hisum_pred_file, "r") as f:
             predictions = json.load(f)
         with h5py.File(args.hisum_gold_file, "r") as hdf:
@@ -51,9 +74,9 @@ if __name__ == '__main__':
                     e = prediction['debug_data'][i]
                     # pred_scores.append(e['relevance_score'])
                     pred_scores.append(
-                        args.alpha *e["informative_score"]\
-                            + args.beta * e['relevance_score'] \
-                                + args.epsilon * e["uncertainty_score"])
+                        hisum_alpha *e["informative_score"]\
+                            + hisum_beta * e['relevance_score'] \
+                                + hisum_epsilon * e["uncertainty_score"])
                     ground_truth_frame_scores.append(vid_ground_truth[i-1])
                 
                 pred_scores = np.array(pred_scores)
@@ -65,7 +88,7 @@ if __name__ == '__main__':
                     category_scores[category_name]["pred_dict"][video_uuid] = pred_scores
                 
                 # pred_scores = (pred_scores - np.min(pred_scores)) / (np.max(pred_scores) - np.min(pred_scores))
-                pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')
+                # pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')
                 pred_dict[video_uuid] = pred_scores
                 gt_dict[video_uuid] = ground_truth_frame_scores
             
@@ -74,7 +97,6 @@ if __name__ == '__main__':
             hisum_mAP50 = round(float(results["mAP@50"]) * 100, 2)
             hisum_mAP15 = round(float(results["mAP@15"]) * 100, 2)
             hisum_f1 = round(float(results["f1"]) * 100, 2)
-            
             metrics = ("mAP@50", "mAP@15", "F1")
             models = {
                 "Ours" : (hisum_mAP50, hisum_mAP15, hisum_f1),
@@ -102,16 +124,16 @@ if __name__ == '__main__':
             ax.legend(loc='upper left', ncols=3)
             ax.set_ylim(0, 100)
 
-            plt.show()
             plt.savefig("hisum_results_comparison.png")
+            plt.show()
         
 
 
 
     if args.dataset == "tvsum":
-        with open(args.pred_file, "r") as f:
+        with open(args.tvsum_pred_file, "r") as f:
             predictions = json.load(f)
-            ground_truths = get_annos(args.gold_file)
+            ground_truths = get_annos(args.tvsum_gold_file)
             category_scores = {}
 
             final_results = list()
@@ -139,16 +161,16 @@ if __name__ == '__main__':
                     importance_scores.append(e['informative_score'])
                     # pred_scores.append(e['relevance_score'])
                     pred_scores.append(
-                        args.alpha *e["informative_score"]\
-                            + args.beta * e['relevance_score'] \
-                                + args.epsilon * e["uncertainty_score"])
+                        tvsum_alpha *e["informative_score"]\
+                            + tvsum_beta * e['relevance_score'] \
+                                + tvsum_epsilon * e["uncertainty_score"])
                     ground_truth_frame_scores.append(vid_ground_truth[true_frame])
                     # print(e['relevance_score'], vid_ground_truth[true_frame])
                 
 
                 pred_scores = np.array(pred_scores)
                 # norm_pred = (pred_scores - np.min(pred_scores)) / (np.max(pred_scores) - np.min(pred_scores))
-                pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')
+                # pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')
                 # pred_scores = list(norm_pred)
 
                 # importance_scores = np.array(importance_scores)
@@ -172,15 +194,15 @@ if __name__ == '__main__':
                 axes[1].set_title('Uncertainty Score Over Time')
 
                 plt.tight_layout()
-                plt.show()
                 plt.savefig(f"results_{show_count}.png")
+                plt.show()
 
                 show_count += 1
                 
     if args.dataset == "hisum":
-        with open(args.pred_file, "r") as f:
+        with open(args.hisum_pred_file, "r") as f:
             predictions = json.load(f)
-        with h5py.File(args.gold_file, "r") as hdf:
+        with h5py.File(args.hisum_gold_file, "r") as hdf:
             
             category_scores = {}
             final_results = list()
@@ -211,9 +233,9 @@ if __name__ == '__main__':
                     e = prediction['debug_data'][i]
                     # pred_scores.append(e['relevance_score'])
                     pred_scores.append(
-                        args.alpha *e["informative_score"]\
-                            + args.beta * e['relevance_score'] \
-                                + args.epsilon * e["uncertainty_score"])
+                        hisum_alpha *e["informative_score"]\
+                            + hisum_beta * e['relevance_score'] \
+                                + hisum_epsilon * e["uncertainty_score"])
                     ground_truth_frame_scores.append(vid_ground_truth[i-1])
                     uncertainty_scores.append(e["uncertainty_score"])
                     importance_scores.append(e['informative_score'])
@@ -227,7 +249,7 @@ if __name__ == '__main__':
                     category_scores[category_name]["pred_dict"][video_uuid] = pred_scores
                 
                 # pred_scores = (pred_scores - np.min(pred_scores)) / (np.max(pred_scores) - np.min(pred_scores))
-                pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')
+                # pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')
                 pred_dict[video_uuid] = pred_scores
                 gt_dict[video_uuid] = ground_truth_frame_scores
                 

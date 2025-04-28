@@ -4,7 +4,7 @@ import cv2
 from test.inference import *
 import numpy as np
 
-def knapsack_selection(frames_with_index, max_duration, score_key, weight, uncertainty=False):
+def knapsack_selection(frames_with_index, max_duration, weight, alpha, beta, epsilon):
     """
     Runs the 0/1 knapsack selection on frames using a specific score.
     Each frame has a cost of 1 and a value equal to: (frame[score_key] * weight)
@@ -13,10 +13,10 @@ def knapsack_selection(frames_with_index, max_duration, score_key, weight, uncer
     # Build DP table: dp[i][j] is max total value using first i frames with budget j.
     dp = [[0 for _ in range(max_duration + 1)] for _ in range(n + 1)]
     for i in range(1, n + 1):
-        if uncertainty:
-            value = (frames_with_index[i - 1][score_key] - frames_with_index[i - 1]["uncertainty_score"]/10) * weight
-        else:
-            value = (frames_with_index[i - 1][score_key]) * weight
+        value = frames_with_index[i - 1]["informative_score"] * alpha \
+        + frames_with_index[i - 1]["relevance_score"] * beta \
+        + frames_with_index[i - 1]["uncertainty_score"] * epsilon 
+
         cost = 1  # each frame has cost 1
         for j in range(max_duration + 1):
             if cost <= j:
@@ -40,9 +40,7 @@ def knapsack_dual_highlight(
         ground_truth_frames, 
         max_duration,  
         video_path, 
-        output_filepath, 
-        uncertainty=False,
-        relevance_weight=.65):
+        output_filepath):
     """
     Uses dual knapsack selection on the given prediction:
       - One knapsack uses the relevance_score weighted by 0.65.
@@ -60,10 +58,14 @@ def knapsack_dual_highlight(
     # Add index to each frame for backtracking.
     frames_with_index = [{"idx": i, **frame} for i, frame in enumerate(frames)]
     
-    relevance_selected = knapsack_selection(frames_with_index, max_duration, "relevance_score", relevance_weight, uncertainty=uncertainty)
-    informative_selected = knapsack_selection(frames_with_index, max_duration, "informative_score", 1-relevance_weight, uncertainty=uncertainty)
+    with open("outputs/grid_search_params.json", "r") as f:
+            best_params = json.load(f)
+        
+    alpha = best_params["tvsum"]["alpha"]
+    beta = best_params["tvsum"]["beta"]
+    epsilon = best_params["tvsum"]["epsilon"]
+    selected = knapsack_selection(frames_with_index, max_duration, "relevance_score", alpha, beta, epsilon)
     
-    merged_selected = relevance_selected.union(informative_selected)
     
     # 4. Define highlight segments.
     cap = cv2.VideoCapture(video_path)
@@ -74,7 +76,7 @@ def knapsack_dual_highlight(
     last_frame = ground_truth_frames[-1]
     highlight_indices = set()
     half_width = int(fps // 2) # center the frame
-    for idx in merged_selected:
+    for idx in selected:
         ground_truth_frame = ground_truth_frames[idx]
         start_idx = max(0, ground_truth_frame - half_width)
         end_idx = min(last_frame + 1, ground_truth_frame + half_width + 1)
@@ -100,7 +102,7 @@ def knapsack_dual_highlight(
     cap.release()
     out.release()
     
-    return merged_selected, highlight_indices
+    return selected, highlight_indices
 
 
 
