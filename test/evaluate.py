@@ -1,4 +1,4 @@
-import os, sys, re, requests, random, yaml
+import os, sys, re, requests, random, yaml, time
 import json
 from tqdm import tqdm
 import argparse
@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 import h5py
 import matplotlib.pyplot as plt
+from groq import Groq # for server evaluation
+
 
 
 from .tvsum.tvsum_utils import *
@@ -73,16 +75,70 @@ class CorrectnessEvaluator:
         return score
 
 
+
 class LlamaServerEvaluator:
+    # Evaluating on groqcloud
+
+
     def __init__(self, url):
+        self.client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+        self.model_name = "llama-3.3-70b-versatile"
         self.url = url
+        self.system_prompt = [
+            {"role": "system", "content": (
+                "You are an evaluator for a video question answering system. Your task is to rate the "
+                "correctness of the predicted answers against the ground truth answers. Use the following scale to assign a score:\n"
+                "- 5: Perfect match; the predicted answer is completely correct and contains all the relevant information.\n"
+                "- 4: Mostly correct; the predicted answer is largely accurate but may have minor omissions or slight inaccuracies.\n"
+                "- 3: Partially correct; the predicted answer has some correct information, but also contains significant inaccuracies or missing key points.\n"
+                "- 2: Slightly correct; the predicted answer has only a few correct elements, but most of the information is incorrect or irrelevant, or the predicted answer conflicts with the ground truth answer.\n"
+                "- 1: Incorrect; the predicted answer is entirely wrong or does not address the question at all.\n\n"
+                "Here are some examples to guide you:")
+            },
+            {"role": "user", "content": "Question: What is shown about the black car?\nGround Truth Answer: At night a black car is parked in the open space with its headlights on. The lights are very dazzling.\nPredicted Answer: The car's headlights are on and dazzling."},
+            {"role": "assistant", "content": "4"},
+
+            {"role": "user", "content": "Question: What is shown in the video?\nGround Truth Answer: In the video, a group of colorful paper birds on the wall move out from the upper right corner of the camera, and then a piece of blue folded paper appears in the camera.\nPredicted Answer: The colorful paper birds are created by folding paper."},
+            {"role": "assistant", "content": "2"},
+
+            {"role": "user", "content": "Question: What is the man doing?\nGround Truth Answer: The video shows a person wearing a helmet flipping several times in the air.\nPredicted Answer: The person wearing a helmet in the background is sitting in a crouch facing the other person."},
+            {"role": "assistant", "content": "3"},
+
+            {"role": "user", "content": "Question: What is the current scene about?\nGround Truth Answer: This is a close-up of a Mercedes-Benz car on display in the showroom.\nPredicted Answer: A Mercedes-Benz car is being displayed in the showroom."},
+            {"role": "assistant", "content": "5"},
+
+            {"role": "user", "content": "Question: What was the unexpected sight in the room with the formally dressed snakes?\nGround Truth Answer: The sight of the snake on the stage talking into a microphone, with many others holding cameras with their tongues out.\nPredicted Answer: A large snake lying on its back in a room with wooden walls and furniture, surrounded by other snakes."},
+            {"role": "assistant", "content": "3"},
+
+            {"role": "user", "content": "Question: What had changed between the beginning and the end of the scene with the man in a black suit and a tie?\nGround Truth Answer: The scene changed from the man talking in the chair to the man sitting on the sofa with a woman and a pizza box, and then to the man fixing his tie and turning to look at the woman.\nPredicted Answer: The man in a black suit and tie is eating pizza."},
+            {"role": "assistant", "content": "1"}
+        ]
+    
 
     def evaluate(self, question, gold_answer, pred_answer):
-        print('sending to llava server:', question, gold_answer, pred_answer)
-        data = {"question": question, 'gold_answer': gold_answer, 'pred_answer': pred_answer}
-        response = requests.post(self.url, json=data)
-        decoded_text = response.json()['text']
-        score = int(decoded_text[-1]) if decoded_text[-1] in '12345' else 1
+        # print('sending to groq server:', question, gold_answer, pred_answer)
+        try:
+            conversation = [
+                {"role": "user", "content": f"Question: {question}\nGround Truth Answer: {gold_answer}\nPredicted Answer: {pred_answer}"}
+            ]
+
+            chat_completion = self.client.chat.completions.create(
+                messages=self.system_prompt + conversation,
+                model=self.model_name,
+                temperature=0.1,
+                max_completion_tokens=512,
+                top_p=1,
+                stop=None,
+                stream=False,
+            )
+
+            response = chat_completion.choices[0].message.content
+            score = int(response[-1]) if response[-1] in '12345' else 1
+            # print(score)
+        except Exception as e:
+            time.sleep(10)
+            # print(f"Exception {e} has occured for question: {question}")
+            score = 1
         return score
 
 
@@ -223,8 +279,10 @@ if __name__ == '__main__':
         print(f"{len(pred_examples)} pred examples to evaluate")
 
         if args.llm_pretrained.startswith('http'):      # this is a llama model server
+            print(f"Starting server connection for {args.llm_pretrained}")
             evaluator = LlamaServerEvaluator(args.llm_pretrained)
         else:
+            print(f"Loading in locally model: {args.llm_pretrained}")
             evaluator = CorrectnessEvaluator(args.llm_pretrained)
 
         f_out = open(args.output_file, 'w')

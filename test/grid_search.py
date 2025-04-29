@@ -322,7 +322,7 @@ def grid_search_with_inference(args, param_grid):
 
         results = youcook2_eval(test_args, pred_examples, gold_examples, gold_file, test_args.output_fname )
         all_results["all_params"][threshold] = results
-        f1 = results["F1_Score"][0]
+        f1 = sum(results["F1_Score"]) / len(results["F1_Score"])
 
 
         if f1 > all_results["best_result"]["best_score"]:
@@ -428,7 +428,9 @@ def grid_search(args, param_grid):
             best_score = score
             best_params = params
 
-    best_params["best_score"] = best_score
+    # best_params["best_score"] = best_score
+
+    print(f"Best score: {best_score}")
 
     best_args_json[args.test_dataset] = best_params
 
@@ -455,7 +457,7 @@ if __name__ == "__main__":
         best_params = grid_search(args, param_grid)
     elif args.test_dataset =="youcook2":
         param_grid = {
-            "threshold": np.linspace(0, 5, 10)
+            "threshold": np.linspace(1, 3, 10)
         }
         best_params = grid_search_with_inference(args, param_grid)
     

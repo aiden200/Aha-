@@ -2,6 +2,7 @@
 import argparse, json, re, os
 from tqdm import tqdm
 import numpy as np
+import time
 
 def convert_to_online_format(example):
     model_response_list = list()
@@ -97,7 +98,7 @@ def model_output_to_openai_batch_input(
                 custom_id = f"{example['question_id']}*{','.join(map(str, gold_turn_ids))}*{','.join(map(str, pred_turn_ids))}"
                 output_example = {
                     "custom_id": custom_id, "method": "POST", "url": "/v1/chat/completions",
-                    "body": {"model": "gpt-4o-2024-08-06", "messages": conversation}
+                    "body": {"model": "gpt-4o-mini", "messages": conversation}
                 }
                 f_out.write(json.dumps(output_example) + '\n')
 
@@ -121,7 +122,8 @@ def openai_batch_output_to_eval_results(
             openai_scores_dict[question_id] = dict()
         for gold_turn_id in gold_turn_ids:
             for pred_turn_id in pred_turn_ids:
-                openai_scores_dict[question_id][(gold_turn_id, pred_turn_id)] = int(openai_example['response']['body']['choices'][0]['message']['content'])
+                # print(openai_example)
+                openai_scores_dict[question_id][(gold_turn_id, pred_turn_id)] = int(openai_example['response']['choices'][0]['message']['content'])
 
     pred_examples = [json.loads(line) for line in open(pred_file)]
     gold_examples = json.load(open(gold_file))
@@ -154,8 +156,34 @@ def openai_batch_output_to_eval_results(
             break
 
 
+import tiktoken
+
+def count_tokens_in_batch(batch_input_fname, model="gpt-4o-mini"):
+    enc = tiktoken.encoding_for_model(model)
+
+    total_tokens = 0
+    with open(batch_input_fname, "r") as f:
+        for line in f:
+            data = json.loads(line)
+            body = data["body"]
+            messages = body.get("messages", [])
+            for message in messages:
+                content = message.get("content", "")
+                total_tokens += len(enc.encode(content))
+            # Add tokens for system/user role labels and structure (very minor, ~4 tokens per message)
+            total_tokens += 4 * len(messages)
+
+    return total_tokens
+
 def openai_send_batch(batch_input_fname, description="debug"):
     from openai import OpenAI
+    total_tokens = count_tokens_in_batch(batch_input_fname, model="gpt-4o-mini")
+    print(f"Estimated total tokens in {batch_input_fname}: {total_tokens}")
+    if total_tokens > 85000:
+        print("⚠️ Warning: This batch might be too large for OpenAI (90k token limit)!")
+        # print("Splitting json files and sending them in batches.")
+
+        # exit(0)
     client = OpenAI()
     batch_input_file = client.files.create(file=open(batch_input_fname, "rb"), purpose="batch")
     batch_input_file_id = batch_input_file.id
@@ -165,6 +193,61 @@ def openai_send_batch(batch_input_fname, description="debug"):
         metadata={"description": description})
     print(batch_input_fname)
     print(batch_metadata)
+
+
+
+def run_openai_regular_api(batch_input_fname, output_fname, model="gpt-4o-mini", sleep_time=0.5):
+    from openai import OpenAI
+    client = OpenAI()
+
+    # Read all inputs
+    requests = []
+    with open(batch_input_fname, "r") as f:
+        for line in f:
+            data = json.loads(line)
+            requests.append((data["custom_id"], data["body"]))
+
+    # Try to resume if output file already exists
+    completed_custom_ids = set()
+    if os.path.exists(output_fname):
+        with open(output_fname, "r") as f_out:
+            for line in f_out:
+                result = json.loads(line)
+                completed_custom_ids.add(result["custom_id"])
+
+    print(f"Already completed {len(completed_custom_ids)} requests. Skipping those.")
+
+    # Open the output file in append mode
+    with open(output_fname, "a") as f_out:
+        for custom_id, body in tqdm(requests, desc="Sending requests to OpenAI"):
+            if custom_id in completed_custom_ids:
+                continue  # Skip already processed requests
+
+            try:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=body["messages"]
+                )
+                result = {
+                    "custom_id": custom_id,
+                    "response": response.to_dict()
+                }
+            except Exception as e:
+                print(f"Error on {custom_id}: {e}")
+                result = {
+                    "custom_id": custom_id,
+                    "response": None,
+                    "error": str(e)
+                }
+
+            # Immediately save each result
+            f_out.write(json.dumps(result) + "\n")
+            f_out.flush()  # Force write to disk
+
+            time.sleep(sleep_time)  # Be nice to API
+
+    print(f"Completed. Results saved to {output_fname}")
+
 
 
 def openai_get_batch(output_file_id, output_fname):
@@ -207,7 +290,14 @@ if __name__ == '__main__':
         )
 
     elif args.func == 'send_batch':
-        openai_send_batch(batch_input_fname=args.pred_file, description=args.description)
+        # openai_send_batch(batch_input_fname=args.pred_file, description=args.description)
+        run_openai_regular_api(
+            batch_input_fname=args.pred_file,
+            output_fname=args.output_file,
+            model="gpt-4o-mini",
+            sleep_time=0.1  # you can lower to 0.1 if you want
+        )
+
 
     elif args.func == 'get_batch':
         openai_get_batch(output_file_id=args.file_id, output_fname=args.output_file)

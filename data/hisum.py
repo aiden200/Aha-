@@ -87,7 +87,6 @@ class HiSumDataset(StreamMixIn):
             random.seed(22)
             videos = json.load(f)["train_keys"]
             random.shuffle(videos)
-            videos = videos[:12000]
         
         video_info = {}
 
