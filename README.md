@@ -7,9 +7,10 @@
 
 [![HuggingFace](https://img.shields.io/badge/HuggingFace-Model-yellow)](https://huggingface.co/aiden200/aha)
 [![Annotations](https://img.shields.io/badge/HuggingFace-Annotations-yellow)](https://huggingface.co/datasets/aiden200/aha-annotationsv1)
-![License](https://img.shields.io/github/license/aiden200/Aha-)
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![Model](https://img.shields.io/badge/model-Qwen--7B-blueviolet)
+![PyTorch](https://img.shields.io/badge/PyTorch-%3E%3D2.5.0-EE4C2C?style=flat-square&logo=pytorch)
+![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 
 ## Contents:
 - [Introduction](#introduction)
@@ -19,11 +20,14 @@
 - [Preparing the metadata](#preparing-the-metadata)
 - [Evaluation](#evaluation)
 - [Training](#training)
-- [Distributed Training](#distributed-Training)
+  - [Distributed Training](#distributed-Training)
 - [Fine-tuning](#fine-tuning)
-- [Aknowledgements & Citation](#aknowledgements)
+- [Acknowledgements](#acknowledgements)
+- [License](#license)
+- [Citation](#citation)
 
 # Introduction
+
 
 Aha! is a video-language model designed to recognize when enough information has been observed in a video, triggering reflection and segmentation at the right moments, just like human intuition during "Aha!" moments.
 
@@ -109,7 +113,7 @@ pip install deepspeed \
 </details>
 
 # Required Specs
-This model trained 1 epoch off of 3 nodes of 2xA6000 GPUs, over 24 hours. You need at least 48GB worth of VRAM on each GPU to tune it.
+This model trained 1 epoch off of 6xA6000 GPUs, over 24 hours. You need at least 48GB worth of VRAM on each GPU to tune it.
 
 Inference requires at least 24GB VRAM. Tested on 2xRTX 4090 GPUs. 
 
@@ -237,7 +241,7 @@ This should give you a structure like this.
 
 
 
-Since some of these datasets (especially Mr.HiSum) are very big, you can always specify the video path in the `configs/datasets/ahait.json` file where the datasets exist on your local machine.  
+Since some of these datasets (especially Mr.HiSum) are very big, you can always specify the video path in the `configs/datasets/aha_config.json` file where the datasets exist on your local machine.  
 
 *note:* I've left a script to help the download processes at `datasets/download_tools`
 
@@ -282,7 +286,7 @@ bash ./scripts/inference/grid_search.sh
 This will automatically update the hyperparameters in `outputs/grid_search_params.json`. Just run the evaluation scripts and it will give you the best result!
 
 
-# Distributed Training
+## Distributed Training
 This model is very big, trained on 8 V100 GPUs, and you will probably need to utilize distributed training. [I've included instructions on how to train on the cloud, using Paperspace.](instructions/distributed_instructions.md)
 
 # Fine-tuning
@@ -299,42 +303,24 @@ cd ..
 In the `scripts/train.sh` file, add this line:
 ```--lora_pretrained outputs/aha  \```
 
-# Acknowledgments
+# Acknowledgements
 This work was conducted as part of the author's AEOP Fellowship, with compute resources and mentorship provided by the Army Research Laboratory, West Coast (ARL-W).
 
-Our codebase is built on top of the VideoLLM-Online and MMDuet frameworks. The base model is derived from Qwen, which itself is an adaptation of LLaVA-NeXT:
+This project builds on:
 - [VideoLLM-online](https://github.com/showlab/VideoLLM-online)
 - [MMDuet](https://github.com/yellow-binary-tree/MMDuet)
-- [LLaVA-NeXT](https://github.com/LLaVA-VL/LLaVA-NeXT) 
+- [LLaVA-NeXT](https://github.com/LLaVA-VL/LLaVA-NeXT)
+- [Mr.HiSum](https://github.com/MRHiSum/MR.HiSum) 
+- [ARL SCOUT](https://github.com/USArmyResearchLab/ARL-SCOUT)
+
+We thank the original authors for their contributions.
 
 
+# License
 
-<!-- 
-## Inference and evaluation
-Scripts to inference on all benchmarks are listed in `./scripts/inference/`.
+<img src="https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square">
 
-**WARNING**: Each script file contains many steps for inference and evaluation. DO NOT directly run these script files. Instead, read the contents of these files carefully and run them step by step.
-
-- YouCook2 dense video captioning: `./scripts/inference/youcook2.sh`
-- Shot2Story-MAGQA-39k multi-answer grounded video question answering (MAGQA): `./scripts/inference/magqa.sh`
-  - **Note**: To save compute, we do not calculate the similarity score between the pred answer and the gold answer if the pred time is not in the gold timespan. We simply set this score to 1 in the score matrix of evaluator_output. These scores are not used in calculating and do not affect the final metric (in-span score).
-- Charades-STA temporal video grounding: `./scripts/inference/charades.sh`
-- QVHighlights highlight detection: `./scripts/inference/qvh.sh`
-
-
-# Training
-
-- If you want to reproduce the training process, you also need to download the training data. Download the videos, and link each video folder to `datasets/${DATASET_NAME}/videos`. Here we list recommended video download links, while you can also download from other sources:
-  - COIN: [https://huggingface.co/datasets/WHB139426/coin](https://huggingface.co/datasets/WHB139426/coin)
-  - HiREST: [https://github.com/j-min/HiREST](https://github.com/j-min/HiREST)
-  - DiDeMo: [https://github.com/LisaAnne/TemporalLanguageRelease](https://github.com/LisaAnne/TemporalLanguageRelease)
-  - QueryD: [https://www.robots.ox.ac.uk/~vgg/data/queryd/](https://www.robots.ox.ac.uk/~vgg/data/queryd/)
-
-Run `./scripts/train.sh`.
-
-When running training code for the first time, the dataset code will traverse all videos of the training dataset and stat the frame rate, duration and number of frames of the videos, and store this information in `datasets/${dataset_name}/videos_metadata.json`. This can take quite a long time.
-Considering that videos downloaded from different sources may be slightly different, in order to ensure that the videos are correctly loaded, we do not include this metadata information in our data release.
-``` -->
+This project is licensed under the [Apache License 2.0](LICENSE).
 
 # Citation
 If you find this work useful in your research, please consider citing:
@@ -346,5 +332,5 @@ If you find this work useful in your research, please consider citing:
       eprint={},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/},
+      url={https://arxiv.org/abs/2404.xxxxx}
 }

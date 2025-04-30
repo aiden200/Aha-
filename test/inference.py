@@ -1,3 +1,4 @@
+
 import collections, math, json, copy, random, os, csv, sys, yaml
 import cv2
 from dataclasses import asdict
@@ -461,6 +462,7 @@ if __name__ == '__main__':
         infer = LiveInferForBenchmark(args)
 
 
+
         for video_name_with_extension in tqdm(data):
             video_uuid = video_name_with_extension[:-4]
             video_path = os.path.join(args.input_dir, video_name_with_extension)
@@ -472,6 +474,9 @@ if __name__ == '__main__':
                 continue
             conversation = list()
             conversation.append({"role": "system", "content": system_prompt})
+            if args.no_query:
+                query = ""
+
             conversation.append({'role': 'user', 'content': query, 'time': 0})
 
 
@@ -542,7 +547,8 @@ if __name__ == '__main__':
                             video_uuid = video_filepath[:-4]
                             video_path = os.path.join(args.input_dir, video_filepath)
                             query = random.choice(query_templates) % caption
-
+                            if args.no_query:
+                                query = ""
                             # max_num_frames=100
                             max_num_frames = None
                             video_frames, fps, video_duration, true_frames_list = load_video_for_testing(video_path, output_fps=args.frame_fps, return_true_frames=True, max_num_frames=max_num_frames)    

@@ -72,6 +72,7 @@ class LiveTestArguments(LiveTrainingArguments):
     video_metadata_file: str = '' # the video metadata file if applicable
     hisum_h5_file: str = "" # hisum file
     anno_file: str = ""
+    no_query: bool = False # For ablations - don't input query if set to True
 
 
 def get_args_class(args_version: str):

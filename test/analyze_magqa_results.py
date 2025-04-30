@@ -1,5 +1,4 @@
 
-# analyze shotstory livechat results evaluated by llama or gpt4o
 import json, argparse
 from tqdm import tqdm
 import numpy as np

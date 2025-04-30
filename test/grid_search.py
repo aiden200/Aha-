@@ -1,3 +1,4 @@
+
 import json
 import h5py
 import numpy as np
@@ -72,7 +73,13 @@ def hisum_score_calculation(predictions, hdf, alpha, beta, epsilon):
     
 
     results = hisum_evaluate_scores(gt_dict, pred_dict, print_logs=False)
-    score = results["mAP@50"]
+
+    kendall = ["kendall"] 
+    spearman = ["spearman"]
+    map50 = ["mAP@50"] 
+    map15 = ["mAP@15"] 
+    f1 = ["f1"]
+    score = spearman
     return score
 
 
