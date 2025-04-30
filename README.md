@@ -6,7 +6,7 @@
 </div>
 
 [![HuggingFace](https://img.shields.io/badge/HuggingFace-Model-yellow)](https://huggingface.co/aiden200/aha)
-[![Annotations](https://img.shields.io/badge/HuggingFace-Model-yellow)](https://huggingface.co/datasets/aiden200/aha-annotationsv1)
+[![Annotations](https://img.shields.io/badge/HuggingFace-Annotations-yellow)](https://huggingface.co/datasets/aiden200/aha-annotationsv1)
 ![License](https://img.shields.io/github/license/aiden200/Aha-)
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![Model](https://img.shields.io/badge/model-Qwen--7B-blueviolet)
