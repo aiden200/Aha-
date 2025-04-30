@@ -102,9 +102,10 @@ def tvsum_score_calculation(predictions, ground_truths, alpha, beta, epsilon):
         pred_dict[video_uuid] = pred_scores
         gt_dict[video_uuid] = ground_truth_frame_scores
 
-    mAP50, mAP15 = evaluate_tvsum(gt_dict, pred_dict)
+    mAP50, mAP15, top_5_mAP = evaluate_tvsum(gt_dict, pred_dict)
     f115 = evaluate_f1(gt_dict, pred_dict)
-    score = mAP50
+    # score = mAP50
+    score = top_5_mAP
     return score
 
 

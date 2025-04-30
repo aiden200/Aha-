@@ -114,6 +114,8 @@ class LlamaServerEvaluator:
             {"role": "assistant", "content": "1"}
         ]
     
+    
+
 
     def evaluate(self, question, gold_answer, pred_answer):
         # print('sending to groq server:', question, gold_answer, pred_answer)
@@ -653,15 +655,16 @@ if __name__ == '__main__':
             pred_dict[video_uuid] = pred_scores
             gt_dict[video_uuid] = ground_truth_frame_scores
 
-        mAP50, mAP15 = evaluate_tvsum(gt_dict, pred_dict)
+        mAP50, mAP15, top_5_map = evaluate_tvsum(gt_dict, pred_dict)
         f115 = evaluate_f1(gt_dict, pred_dict)
         
         print(f"TvSum evaluation:\nmAP15: {mAP15}")
         print(f"TvSum evaluation:\nmAP50: {mAP50}")
+        print(f"TvSum evaluation:\nTop5mAP: {top_5_map}")
         print(f"TVSum F1@15: {f115}")
 
         for category in category_scores:
-            categorymAP50, categorymAP15 = evaluate_tvsum(category_scores[category]["gt_dict"], category_scores[category]["pred_dict"])
+            categorymAP50, categorymAP15, category_top_5_map = evaluate_tvsum(category_scores[category]["gt_dict"], category_scores[category]["pred_dict"])
             print(f"{category} mAP50: {categorymAP50}, {category} mAP15: {categorymAP15}")
             # if args.output_file:
             #     json.dump(final_results, open(args.output_file, 'w'), indent=4)

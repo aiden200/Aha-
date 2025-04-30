@@ -15,6 +15,26 @@ def map_at_rho(gt_scores, pred_scores, rho):
     gt_bin = binarize_gt(gt_scores, rho)
     return average_precision_score(gt_bin, pred_scores)
 
+def evaluate_top5_map_tvsum(gt_dict, pred_dict, rho=0.2, top_k=5):
+    ap_list = []
+
+    for vid in gt_dict:
+        gt_scores = np.array(gt_dict[vid])
+        pred_scores = np.array(pred_dict[vid])
+
+        assert len(gt_scores) == len(pred_scores), f"Length mismatch for video {vid}"
+
+        # Binarize GT by selecting top-rho clips
+        gt_binary = binarize_gt(gt_scores, rho)
+
+        # Rank predictions
+        sorted_indices = np.argsort(pred_scores)[::-1]
+
+        # Compute AP at top-k
+        ap = compute_ap(gt_binary, sorted_indices, k=top_k)
+        ap_list.append(ap)
+
+    return np.mean(ap_list)
 
 def evaluate_tvsum(gt_dict, pred_dict):
 
@@ -32,7 +52,9 @@ def evaluate_tvsum(gt_dict, pred_dict):
 
     mAP50 = np.mean(map50_scores)
     mAP15 = np.mean(map15_scores)
-    return mAP50, mAP15
+    top_5_map = evaluate_top5_map_tvsum(gt_dict, pred_dict)
+    
+    return mAP50, mAP15, top_5_map
 
 
 import numpy as np

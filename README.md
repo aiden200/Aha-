@@ -1,4 +1,4 @@
-# Official implementation of paper: *Aha! – When Has a Model Seen Enough? Adaptive Video Segmentation and Highlight Detection*
+# Official implementation of paper: *Aha! – Predicting What Matters Next: Online Highlight Detection Without Looking Ahead*
 
 <div align="center">
     <img src="assets/cover_photo.jpg">
