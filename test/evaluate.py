@@ -655,17 +655,20 @@ if __name__ == '__main__':
             pred_dict[video_uuid] = pred_scores
             gt_dict[video_uuid] = ground_truth_frame_scores
 
-        mAP50, mAP15, top_5_map = evaluate_tvsum(gt_dict, pred_dict)
+        mAP50, mAP15, top_5_map, spearman, kendall = evaluate_tvsum(gt_dict, pred_dict)
         f115 = evaluate_f1(gt_dict, pred_dict)
         
-        print(f"TvSum evaluation:\nmAP15: {mAP15}")
-        print(f"TvSum evaluation:\nmAP50: {mAP50}")
-        print(f"TvSum evaluation:\nTop5mAP: {top_5_map}")
-        print(f"TVSum F1@15: {f115}")
+        print(f"TvSum evaluation:")
+        print(f"Top5mAP: {top_5_map:.4f}")
+        print(f"mAP50: {mAP50:.4f}")
+        print(f"mAP15: {mAP15:.4f}")
+        print(f"Spearman ρ: {spearman:.4f}")
+        print(f"Kendall τ : {kendall:.4f}")
+        print(f"TVSum F1@15: {f115:.4f}")
 
         for category in category_scores:
-            categorymAP50, categorymAP15, category_top_5_map = evaluate_tvsum(category_scores[category]["gt_dict"], category_scores[category]["pred_dict"])
-            print(f"{category} mAP50: {categorymAP50}, {category} mAP15: {categorymAP15}")
+            categorymAP50, categorymAP15, category_top_5_map, category_spearman, category_kendall = evaluate_tvsum(category_scores[category]["gt_dict"], category_scores[category]["pred_dict"])
+            print(f"{category} mAP50: {categorymAP50:.4f}, mAP15: {categorymAP15:.4f}, Top 5-mAP {category_top_5_map:.4f}, Spearman ρ {category_spearman:.4f}, Kendall τ: {category_kendall:.4f}")
             # if args.output_file:
             #     json.dump(final_results, open(args.output_file, 'w'), indent=4)
 

@@ -6,6 +6,7 @@
 </div>
 
 [![HuggingFace](https://img.shields.io/badge/HuggingFace-Model-yellow)](https://huggingface.co/aiden200/aha)
+[![Annotations](https://img.shields.io/badge/HuggingFace-Model-yellow)](https://huggingface.co/datasets/aiden200/aha-annotationsv1)
 ![License](https://img.shields.io/github/license/aiden200/Aha-)
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![Model](https://img.shields.io/badge/model-Qwen--7B-blueviolet)
@@ -75,7 +76,8 @@ cd ..
 ``` -->
 
 
-## Common Problems
+<details Open>
+<summary> Common Problems </summary>
 
 *Note 1:* If you get a `bitsandbytes` error, try running:
 ```bash
@@ -104,11 +106,12 @@ pip install deepspeed \
   --global-option="build_ext" \
   --global-option="-j8"
 ```
+</details>
 
 # Required Specs
 This model trained 1 epoch off of 3 nodes of 2xA6000 GPUs, over 24 hours. You need at least 48GB worth of VRAM on each GPU to tune it.
 
-Inference requires at least 24GB VRAM. Inference performed on a single RTX 4090 GPU. 
+Inference requires at least 24GB VRAM. Tested on 2xRTX 4090 GPUs. 
 
 
 # Inference

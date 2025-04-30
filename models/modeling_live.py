@@ -112,6 +112,7 @@ def build_live(
 ):
 
     if quantization:
+        raise ValueError("Quantization is not stable. ")
         logger.info("Quantization applied")
         quantization_config = BitsAndBytesConfig(
             load_in_4bit=True,

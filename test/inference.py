@@ -25,7 +25,7 @@ from llava.conversation import conv_templates
 
 from models import build_model_and_tokenizer, fast_greedy_generate, parse_args
 from .datasets import FastAndAccurateStreamingVideoQADataset
-from test.arl_scout.prepare_data import generate_plot
+from test.arl_scout.prepare_data import generate_plot, TICKS
 
 
 class LiveInferForBenchmark:
@@ -466,7 +466,6 @@ if __name__ == '__main__':
             video_path = os.path.join(args.input_dir, video_name_with_extension)
             query = random.choice(query_templates) % captions[video_uuid]["query"]
 
-            # max_num_frames=100
             max_num_frames = None
             video_frames, fps, video_duration, true_frames_list = load_video_for_testing(video_path, output_fps=args.frame_fps, return_true_frames=True, max_num_frames=max_num_frames)    
             if video_frames == None:
@@ -477,7 +476,6 @@ if __name__ == '__main__':
 
 
             infer.reset()
-            # print(f"num frames and fps for {video_uuid}: {len(video_frames)}, {fps}")
             infer.set_fps(fps=fps)
             infer.input_video_stream(video_frames)
             infer.input_query_stream(conversation)
@@ -617,17 +615,43 @@ if __name__ == '__main__':
         # relevance_scores = np.convolve(relevance_scores, np.ones(5)/5, mode='same')
 
         # Create the plot
-        plt.figure(figsize=(10, 6))
-        plt.plot(times, informative_scores, label="Informative Score")
-        plt.plot(times, relevance_scores, label="Relevance Score")
-        plt.plot(times, uncertainty_scores, label="Uncertainty Score")
+        
+        fig, ax = plt.subplots(figsize=(14, 7))
+        ax.plot(times, informative_scores, label="Informative Score", alpha=0.2)
+        ax.plot(times, relevance_scores, label="Relevance Score", color="BLACK")
+        ax.plot(times, uncertainty_scores, label="Uncertainty Score", alpha=0.4)
 
-        plt.xlabel("Time")
-        plt.ylabel("Score")
-        plt.title("Scores over Time")
-        plt.legend()
-        plt.grid(True)
+        for idx, (start, end, label) in enumerate(TICKS):
+            color = f"C{idx % 10}"  # Cycle through matplotlib's default color cycle
+            alpha = 0.3
+            mid = (start + end) / 2
+            if start == end:
+                end += 1
+                alpha = 0.8
+                mid -= 3.5
+            ax.axvspan(start, end, ymin=0, ymax=1, color=color, alpha=alpha)
+            ax.text(mid, 0, label, rotation=90, va='bottom', ha='center', fontsize=25, color='black', clip_on=True)
+
+        ax.set_xlabel("Time")
+        ax.set_ylabel("Score")
+        ax.set_title("Scores over Time with Scene Annotations")
+        ax.legend()
+        ax.grid(True)
+
+        plt.tight_layout()
         plt.savefig(os.path.join(parent_dir, "visualization.png"))
+        plt.show()
+
+        # plt.figure(figsize=(14, 7))
+        # plt.plot(times, informative_scores, label="Informative Score")
+        # plt.plot(times, relevance_scores, label="Relevance Score")
+        # plt.plot(times, uncertainty_scores, label="Uncertainty Score")
+        # plt.xlabel("Time")
+        # plt.ylabel("Score")
+        # plt.title("Scores over Time")
+        # plt.legend()
+        # plt.grid(True)
+        # plt.savefig(os.path.join(parent_dir, "visualization.png"))
 
         os.makedirs(os.path.join(parent_dir, "stiched"), exist_ok=True)
 

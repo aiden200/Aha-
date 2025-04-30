@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.stats import pearsonr, spearmanr
+from scipy.stats import spearmanr, kendalltau
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import numpy as np
 from sklearn.metrics import average_precision_score, f1_score
@@ -78,38 +79,36 @@ def hisum_f1_score_summarization(gt_dict, pred_dict, budget=0.15, shot_length=1)
 def hisum_evaluate_scores(gt_dict, pred_dict, print_logs=True):
     mse_list = []
     mae_list = []
-    pearson_list = []
+    kendall_list = []
     spearman_list = []
 
-    # for video_id in gt_dict:
-    #     gt = gt_dict[video_id]
-    #     pred = pred_dict[video_id]
+    for video_id in gt_dict:
+        gt = gt_dict[video_id]
+        pred = pred_dict[video_id]
 
-    #     if len(gt) != len(pred):
-    #         continue  # sanity check
+        if len(gt) != len(pred):
+            continue  # sanity check
 
-    #     mse_list.append(mean_squared_error(gt, pred))
-    #     mae_list.append(mean_absolute_error(gt, pred))
+        if len(gt) > 1:
+            spearman_corr, _ = spearmanr(gt, pred)
+            kendall_corr, _ = kendalltau(gt, pred)
+        else:
+            spearman_corr = kendall_corr = 0.0
 
-    #     if len(gt) > 1:  # correlation requires more than 1 point
-    #         pearson_corr, _ = pearsonr(gt, pred)
-    #         spearman_corr, _ = spearmanr(gt, pred)
-    #     else:
-    #         pearson_corr = spearman_corr = 0.0
-        
-    #     pearson_list.append(pearson_corr)
-    #     spearman_list.append(spearman_corr)
+        spearman_list.append(spearman_corr)
+        kendall_list.append(kendall_corr)
     
     map50 = hisum_mean_average_precision(gt_dict, pred_dict, rho=.5)
     map15 = hisum_mean_average_precision(gt_dict, pred_dict, rho=.15)
     f1 = hisum_f1_score_summarization(gt_dict, pred_dict)
+    
 
     if print_logs:
         print("Overall Evaluation:")
         # print(f"  MSE: {np.mean(mse_list):.4f}")
         # print(f"  MAE: {np.mean(mae_list):.4f}")
-        # print(f"  Pearson: {np.mean(pearson_list):.4f}")
-        # print(f"  Spearman: {np.mean(spearman_list):.4f}")
+        print(f"  Spearman ρ: {np.mean(spearman_list):.4f}")
+        print(f"  Kendall τ : {np.mean(kendall_list):.4f}")
         print(f"  mAP@50: {map50:.4f}")
         print(f"  mAP@15: {map15:.4f}")
         print(f"  F1: {f1:.4f}")
@@ -118,8 +117,8 @@ def hisum_evaluate_scores(gt_dict, pred_dict, print_logs=True):
     return {
         # "mse": np.mean(mse_list),
         # "mae": np.mean(mae_list),
-        # "pearson": np.mean(pearson_list),
-        # "spearman": np.mean(spearman_list),
+        "kendall": np.mean(kendall_list),
+        "spearman": np.mean(spearman_list),
         "mAP@50": map50,
         "mAP@15": map15,
         "f1": f1

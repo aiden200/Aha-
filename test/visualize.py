@@ -85,7 +85,7 @@ if __name__ == '__main__':
                     if category_name not in category_scores:
                         category_scores[category_name] = {"gt_dict": {}, "pred_dict": {}}
                     category_scores[category_name]["gt_dict"][video_uuid] = ground_truth_frame_scores
-                    category_scores[category_name]["pred_dict"][video_uuid] = pred_scores
+                    category_scores[category_nargsame]["pred_dict"][video_uuid] = pred_scores
                 
                 # pred_scores = (pred_scores - np.min(pred_scores)) / (np.max(pred_scores) - np.min(pred_scores))
                 # pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')
