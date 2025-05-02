@@ -29,26 +29,26 @@ from .tvsum.tvsum_utils import *
 
 
 def score_worker(args_tuple):
-    alpha, beta, epsilon, predictions, dataset, hdf_path, ground_truths = args_tuple
+    alpha, beta, epsilon, uncertainty_threshold, uncertainty_penalty, predictions, dataset, hdf_path, ground_truths = args_tuple
 
     if dataset == "hisum":
         with h5py.File(hdf_path, "r") as hdf:
-            score = hisum_score_calculation(predictions, hdf, alpha, beta, epsilon)
+            score = hisum_score_calculation(predictions, hdf, alpha, beta, epsilon, uncertainty_threshold, uncertainty_penalty)
 
     elif dataset == "tvsum":
-        score = tvsum_score_calculation(predictions, ground_truths, alpha, beta, epsilon)
+        score = tvsum_score_calculation(predictions, ground_truths, alpha, beta, epsilon, uncertainty_threshold, uncertainty_penalty)
     
     elif dataset == "qvh":
-        score = qvh_eval(predictions, ground_truths, alpha, beta, epsilon)
+        score = qvh_eval(predictions, ground_truths, alpha, beta, epsilon, uncertainty_threshold, uncertainty_penalty)
     
     elif dataset == "charades":
-        score = charades_eval(predictions, ground_truths, alpha, beta, epsilon)
+        score = charades_eval(predictions, ground_truths, alpha, beta, epsilon, uncertainty_threshold, uncertainty_penalty)
 
-    return score, {"alpha": alpha, "beta": beta, "epsilon": epsilon}
+    return score, {"alpha": alpha, "beta": beta, "epsilon": epsilon, "uncertainty_threshold": uncertainty_threshold, "uncertainty_penalty": uncertainty_penalty}
 
 
 
-def hisum_score_calculation(predictions, hdf, alpha, beta, epsilon):
+def hisum_score_calculation(predictions, hdf, alpha, beta, epsilon, uncertainty_threshold, uncertainty_penalty):
     
     gt_dict = {}
     pred_dict = {}
@@ -60,10 +60,19 @@ def hisum_score_calculation(predictions, hdf, alpha, beta, epsilon):
         pred_scores = list()
         for i in range(1, min(len(prediction['debug_data']), len(vid_ground_truth))):
             e = prediction['debug_data'][i]
-            pred_scores.append(
-                alpha *e["informative_score"]\
-                    + beta * e['relevance_score'] \
-                        + epsilon * e["uncertainty_score"])
+            if epsilon:
+                pred_scores.append(
+                    alpha *e["informative_score"]\
+                        + beta * e['relevance_score'] \
+                            + epsilon * e["uncertainty_score"])
+            else:
+                curr_pred_score = alpha * e["informative_score"] + beta * e['relevance_score']
+                if e["uncertainty_score"] >= uncertainty_threshold:
+                    diff = e["uncertainty_score"] - uncertainty_threshold
+                    penalty = diff * uncertainty_penalty
+                    curr_pred_score -= penalty
+                pred_scores.append(curr_pred_score)
+
             ground_truth_frame_scores.append(vid_ground_truth[i-1])
         pred_scores = np.array(pred_scores)
         ground_truth_frame_scores = np.array(ground_truth_frame_scores)
@@ -71,19 +80,19 @@ def hisum_score_calculation(predictions, hdf, alpha, beta, epsilon):
         pred_dict[video_uuid] = pred_scores
         gt_dict[video_uuid] = ground_truth_frame_scores
     
-
-    results = hisum_evaluate_scores(gt_dict, pred_dict, print_logs=False)
-
-    kendall = ["kendall"] 
-    spearman = ["spearman"]
-    map50 = ["mAP@50"] 
-    map15 = ["mAP@15"] 
-    f1 = ["f1"]
-    score = spearman
+    spearman_kendall = False
+    results = hisum_evaluate_scores(gt_dict, pred_dict, spearman_kendall=spearman_kendall, print_logs=False)
+    if spearman_kendall:
+        kendall = results["kendall"] 
+        spearman = results["spearman"]
+    map50 = results["mAP@50"] 
+    map15 = results["mAP@15"] 
+    f1 = results["f1"]
+    score = map50
     return score
 
 
-def tvsum_score_calculation(predictions, ground_truths, alpha, beta, epsilon):
+def tvsum_score_calculation(predictions, ground_truths, alpha, beta, epsilon=None, uncertainty_threshold=None, uncertainty_penalty=None):
     gt_dict = {}
     pred_dict = {}
     for prediction in predictions:
@@ -96,9 +105,17 @@ def tvsum_score_calculation(predictions, ground_truths, alpha, beta, epsilon):
             e = prediction['debug_data'][i]
             true_frame = true_frames_list[i]
             # video_times.append(e['video_time'])
-            pred_scores.append(alpha * e["informative_score"] \
-                + beta * e['relevance_score'] \
-                    + epsilon * e["uncertainty_score"])
+            if epsilon:
+                pred_scores.append(alpha * e["informative_score"] \
+                    + beta * e['relevance_score'] \
+                        + epsilon * e["uncertainty_score"])
+            else:
+                curr_pred_score = alpha * e["informative_score"] + beta * e['relevance_score']
+                if e["uncertainty_score"] >= uncertainty_threshold:
+                    diff = e["uncertainty_score"] - uncertainty_threshold
+                    penalty = diff * uncertainty_penalty
+                    curr_pred_score -= penalty
+                pred_scores.append(curr_pred_score)
 
             ground_truth_frame_scores.append(vid_ground_truth[true_frame])
 
@@ -177,7 +194,7 @@ def youcook2_eval(test_args, pred_examples, gold_examples, gold_file, pred_file)
     return results
 
 
-def qvh_eval(predictions, ground_truths, alpha, beta, epsilon):
+def qvh_eval(predictions, ground_truths, alpha, beta, epsilon, uncertainty_threshold, uncertainty_penalty):
     reformatted_pred_list = list()
 
     for example in predictions:
@@ -188,11 +205,19 @@ def qvh_eval(predictions, ground_truths, alpha, beta, epsilon):
         for e in example['debug_data']:
             video_times.append(e['time'])
             if 'relevance_score' in e:
-                # pred_scores.append(e['relevance_score'][1])
-                pred_scores.append(
-                    alpha* e['informative_score'] \
-                        + beta * e['relevance_score']\
-                            + epsilon * e['uncertainty_score'])
+                if epsilon:
+                    pred_scores.append(e['relevance_score'][1])
+                    pred_scores.append(
+                        alpha* e['informative_score'] \
+                            + beta * e['relevance_score']\
+                                + epsilon * e['uncertainty_score'])
+                else:
+                    curr_pred_score = alpha * e["informative_score"] + beta * e['relevance_score']
+                    if e["uncertainty_score"] >= uncertainty_threshold:
+                        diff = e["uncertainty_score"] - uncertainty_threshold
+                        penalty = diff * uncertainty_penalty
+                        curr_pred_score -= penalty
+                    pred_scores.append(curr_pred_score)
             else:
                 pred_scores.append(0)
 
@@ -200,11 +225,11 @@ def qvh_eval(predictions, ground_truths, alpha, beta, epsilon):
         reformatted_pred_list.append({'qid': example['question_id'], 'pred_saliency_scores': pred_saliency_scores})
 
     results = eval_submission(reformatted_pred_list, ground_truths, verbose=False, match_number=False)
-    score = results['HL-min-Fair']['HL-mAP']
+    score = results['HL-min-VeryGood']['HL-mAP']
     return score
 
 
-def charades_eval(predictions, ground_truths, alpha, beta, epsilon):
+def charades_eval(predictions, ground_truths, alpha, beta, epsilon, uncertainty_threshold, uncertainty_penalty):
     iou_scores_list_dict = {threshold: list() for threshold in np.arange(0.30, 0.71, 0.02)}
     for pred_example in predictions:
         gold_example = ground_truths[pred_example['question_id']]
@@ -212,9 +237,19 @@ def charades_eval(predictions, ground_truths, alpha, beta, epsilon):
         for e in pred_example['debug_data']:
             video_times.append(e['time'])
             if 'relevance_score' in e:
-                pred_scores.append(alpha * e['informative_score'] \
-                                    + beta * e['relevance_score'] \
-                                    + epsilon * e['uncertainty_score'])
+                if epsilon:
+                    pred_scores.append(e['relevance_score'][1])
+                    pred_scores.append(
+                        alpha* e['informative_score'] \
+                            + beta * e['relevance_score']\
+                                + epsilon * e['uncertainty_score'])
+                else:
+                    curr_pred_score = alpha * e["informative_score"] + beta * e['relevance_score']
+                    if e["uncertainty_score"] >= uncertainty_threshold:
+                        diff = e["uncertainty_score"] - uncertainty_threshold
+                        penalty = diff * uncertainty_penalty
+                        curr_pred_score -= penalty
+                    pred_scores.append(curr_pred_score)
             else:
                 pred_scores.append(0)
 
@@ -352,7 +387,7 @@ def grid_search_with_inference(args, param_grid):
         
 
 
-def grid_search(args, param_grid):
+def grid_search(args, param_grid, uncertainty=False):
     """
     Performs a grid search over the weight parameters (alpha, beta, epsilon)
     to combine informative_score, relevance_score, and uncertainty_score.
@@ -373,10 +408,11 @@ def grid_search(args, param_grid):
               For example: {"alpha": 0.3, "beta": 0.5, "epsilon": 0.2, "pearson": 0.85}
     """
 
-    best_params = {"alpha": None, "beta": None, "epsilon": None}
+    best_params = {"alpha": None, "beta": None, "epsilon": None, "uncertainty_threshold": None, "uncertainty_penalty": None}
     hdf = None
     ground_truths = None
-
+    uncertainty_threshold = None
+    uncertainty_penalty = None
 
     with open("paths.yaml", "r") as f:
         dataset_args = yaml.safe_load(f)
@@ -421,9 +457,13 @@ def grid_search(args, param_grid):
     )
     
     NUM_WORKERS = 100
-    
-    param_combos = list(product(param_grid["alpha"], param_grid["beta"], param_grid["epsilon"]))
-    args_list = [(alpha, beta, epsilon, predictions, args.test_dataset, args.gold_file, ground_truths) for alpha, beta, epsilon in param_combos]
+    if uncertainty:
+        param_combos = list(product(param_grid["alpha"], param_grid["beta"], param_grid["uncertainty_threshold"], param_grid["uncertainty_penalty"]))
+        args_list = [(alpha, beta, None, uncertainty_threshold, uncertainty_penalty, predictions, args.test_dataset, args.gold_file, ground_truths) for alpha, beta, uncertainty_threshold, uncertainty_penalty in param_combos]
+    else:
+        param_combos = list(product(param_grid["alpha"], param_grid["beta"], param_grid["epsilon"]))
+        args_list = [(alpha, beta, epsilon, uncertainty_threshold, uncertainty_penalty, predictions, args.test_dataset, args.gold_file, ground_truths) for alpha, beta, epsilon in param_combos]
+
 
     best_score = float("-inf")
     best_params = {}
@@ -452,17 +492,22 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--test_dataset", type=str, required=True, help="The type of dataset used")
+    parser.add_argument("--uncertainty", action="store_true")
     args = parser.parse_args()
 
     non_eval_metrics = ["hisum", "tvsum", "qvh", "charades"]
 
     if args.test_dataset in non_eval_metrics:
         param_grid = {
-            "alpha": np.linspace(-0.5, 2.0, 20), # Importance
-            "beta": np.linspace(-0.5, 2.0, 20), # Relevance
-            "epsilon": np.linspace(-10.0, 10.0, 20) # Uncertainty
+            "alpha": np.linspace(0.0, 2.0, 10), # Importance
+            "beta": np.linspace(0.0, 2.0, 10), # Relevance
+            "epsilon": np.linspace(-10.0, 10.0, 20), # Uncertainty
+            # "alpha": np.linspace(1.47, 1.47, 1), # Importance
+            # "beta": np.linspace(1.87, 1.87, 1), # Relevance
+            "uncertainty_threshold": np.linspace(0.04, 0.15, 10),
+            "uncertainty_penalty": np.linspace(-5, 5, 15)
         }
-        best_params = grid_search(args, param_grid)
+        best_params = grid_search(args, param_grid, args.uncertainty)
     elif args.test_dataset =="youcook2":
         param_grid = {
             "threshold": np.linspace(1, 3, 10)

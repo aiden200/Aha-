@@ -76,27 +76,28 @@ def hisum_f1_score_summarization(gt_dict, pred_dict, budget=0.15, shot_length=1)
     return np.mean(f1_list)
 
 
-def hisum_evaluate_scores(gt_dict, pred_dict, print_logs=True):
+def hisum_evaluate_scores(gt_dict, pred_dict, spearman_kendall = False, print_logs=True):
     mse_list = []
     mae_list = []
     kendall_list = []
     spearman_list = []
 
-    for video_id in gt_dict:
-        gt = gt_dict[video_id]
-        pred = pred_dict[video_id]
+    if spearman_kendall:
+        for video_id in gt_dict:
+            gt = gt_dict[video_id]
+            pred = pred_dict[video_id]
 
-        if len(gt) != len(pred):
-            continue  # sanity check
+            if len(gt) != len(pred):
+                print(f"error, gt and pred not matching: {len(gt)} vs {len(pred)}")
+                continue  # sanity check
+            if len(gt) > 1:
+                spearman_corr, _ = spearmanr(gt, pred)
+                kendall_corr, _ = kendalltau(gt, pred)
+            else:
+                spearman_corr = kendall_corr = 0.0
 
-        if len(gt) > 1:
-            spearman_corr, _ = spearmanr(gt, pred)
-            kendall_corr, _ = kendalltau(gt, pred)
-        else:
-            spearman_corr = kendall_corr = 0.0
-
-        spearman_list.append(spearman_corr)
-        kendall_list.append(kendall_corr)
+            spearman_list.append(spearman_corr)
+            kendall_list.append(kendall_corr)
     
     map50 = hisum_mean_average_precision(gt_dict, pred_dict, rho=.5)
     map15 = hisum_mean_average_precision(gt_dict, pred_dict, rho=.15)
@@ -104,22 +105,30 @@ def hisum_evaluate_scores(gt_dict, pred_dict, print_logs=True):
     
 
     if print_logs:
+
         print("Overall Evaluation:")
         # print(f"  MSE: {np.mean(mse_list):.4f}")
         # print(f"  MAE: {np.mean(mae_list):.4f}")
-        print(f"  Spearman ρ: {np.mean(spearman_list):.4f}")
-        print(f"  Kendall τ : {np.mean(kendall_list):.4f}")
+        if spearman_kendall:
+            print(f"  Spearman ρ: {np.mean(spearman_list):.4f}")
+            print(f"  Kendall τ : {np.mean(kendall_list):.4f}")
         print(f"  mAP@50: {map50:.4f}")
         print(f"  mAP@15: {map15:.4f}")
         print(f"  F1: {f1:.4f}")
         
-
-    return {
-        # "mse": np.mean(mse_list),
-        # "mae": np.mean(mae_list),
-        "kendall": np.mean(kendall_list),
-        "spearman": np.mean(spearman_list),
-        "mAP@50": map50,
-        "mAP@15": map15,
-        "f1": f1
-    }
+    if spearman_kendall:
+        return {
+            # "mse": np.mean(mse_list),
+            # "mae": np.mean(mae_list),
+            "kendall": np.mean(kendall_list),
+            "spearman": np.mean(spearman_list),
+            "mAP@50": map50,
+            "mAP@15": map15,
+            "f1": f1
+        }
+    else:
+        return {
+            "mAP@50": map50,
+            "mAP@15": map15,
+            "f1": f1
+        }

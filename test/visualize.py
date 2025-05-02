@@ -48,6 +48,7 @@ if __name__ == '__main__':
 
     
     if args.dataset == "hisum_visualize_sota_scores":
+        
         with open(args.hisum_pred_file, "r") as f:
             predictions = json.load(f)
         with h5py.File(args.hisum_gold_file, "r") as hdf:
@@ -78,6 +79,8 @@ if __name__ == '__main__':
                         hisum_alpha *e["informative_score"]\
                             + hisum_beta * e['relevance_score'] \
                                 + hisum_epsilon * e["uncertainty_score"])
+                    
+
                     ground_truth_frame_scores.append(vid_ground_truth[i-1])
                 
                 pred_scores = np.array(pred_scores)
@@ -86,7 +89,7 @@ if __name__ == '__main__':
                     if category_name not in category_scores:
                         category_scores[category_name] = {"gt_dict": {}, "pred_dict": {}}
                     category_scores[category_name]["gt_dict"][video_uuid] = ground_truth_frame_scores
-                    category_scores[category_nargsame]["pred_dict"][video_uuid] = pred_scores
+                    category_scores[category_name]["pred_dict"][video_uuid] = pred_scores
                 
                 # pred_scores = (pred_scores - np.min(pred_scores)) / (np.max(pred_scores) - np.min(pred_scores))
                 # pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')
@@ -132,6 +135,8 @@ if __name__ == '__main__':
 
 
     if args.dataset == "tvsum":
+        args.uncertainty_threshold = best_args_json["tvsum"]["uncertainty_threshold"]
+        args.uncertainty_penalty = best_args_json["tvsum"]["uncertainty_penalty"]
         with open(args.tvsum_pred_file, "r") as f:
             predictions = json.load(f)
             ground_truths = get_annos(args.tvsum_gold_file)
@@ -161,10 +166,18 @@ if __name__ == '__main__':
                     uncertainty_scores.append(e["uncertainty_score"])
                     importance_scores.append(e['informative_score'])
                     # pred_scores.append(e['relevance_score'])
-                    pred_scores.append(
-                        tvsum_alpha *e["informative_score"]\
-                            + tvsum_beta * e['relevance_score'] \
-                                + tvsum_epsilon * e["uncertainty_score"])
+                    # pred_scores.append(
+                    #     tvsum_alpha *e["informative_score"]\
+                    #         + tvsum_beta * e['relevance_score'] \
+                    #             + tvsum_epsilon * e["uncertainty_score"])
+                    curr_pred_score = args.alpha * e["informative_score"] + args.beta * e['relevance_score']
+                    if e["uncertainty_score"] >= args.uncertainty_threshold:
+                        diff = e["uncertainty_score"] - args.uncertainty_threshold
+                        penalty = diff * args.uncertainty_penalty
+                        curr_pred_score -= penalty
+                    
+                    pred_scores.append(curr_pred_score)
+
                     ground_truth_frame_scores.append(vid_ground_truth[true_frame])
                     # print(e['relevance_score'], vid_ground_truth[true_frame])
                 
@@ -189,6 +202,14 @@ if __name__ == '__main__':
                 axes[0].set_title('Predicted vs. Ground Truth Relevance Over Time')
 
                 # Chart 2: Uncertainty
+                if args.uncertainty_threshold:
+                    axes[1].axhline(
+                        y=args.uncertainty_threshold,
+                        color="red",
+                        linestyle="--",
+                        linewidth=1.5,
+                        label=f"Threshold = {args.uncertainty_threshold:.2f}"
+                    )
                 axes[1].plot(x, uncertainty_scores, label='Uncertainty', color='tab:red', linewidth=2)
                 axes[1].set_ylabel('Uncertainty')
                 axes[1].set_xlabel('Frame')
@@ -201,6 +222,8 @@ if __name__ == '__main__':
                 show_count += 1
                 
     if args.dataset == "hisum":
+        args.uncertainty_threshold = best_args_json["hisum"]["uncertainty_threshold"]
+        args.uncertainty_penalty = best_args_json["hisum"]["uncertainty_penalty"]
         with open(args.hisum_pred_file, "r") as f:
             predictions = json.load(f)
         with h5py.File(args.hisum_gold_file, "r") as hdf:
@@ -233,11 +256,20 @@ if __name__ == '__main__':
                 for i in range(1, min(len(prediction['debug_data']), len(vid_ground_truth))):
                     e = prediction['debug_data'][i]
                     # pred_scores.append(e['relevance_score'])
-                    pred_scores.append(
-                        hisum_alpha *e["informative_score"]\
-                            + hisum_beta * e['relevance_score'] \
-                                + hisum_epsilon * e["uncertainty_score"])
+                    # pred_scores.append(
+                    #     hisum_alpha *e["informative_score"]\
+                    #         + hisum_beta * e['relevance_score'] \
+                    #             + hisum_epsilon * e["uncertainty_score"])
                     ground_truth_frame_scores.append(vid_ground_truth[i-1])
+
+                    curr_pred_score = args.alpha * e["informative_score"] + args.beta * e['relevance_score']
+
+                    if e["uncertainty_score"] >= args.uncertainty_threshold:
+                        diff = e["uncertainty_score"] - args.uncertainty_threshold
+                        penalty = diff * args.uncertainty_penalty
+                        curr_pred_score -= penalty
+                    pred_scores.append(curr_pred_score)
+
                     uncertainty_scores.append(e["uncertainty_score"])
                     importance_scores.append(e['informative_score'])
                     
@@ -266,6 +298,14 @@ if __name__ == '__main__':
                 axes[0].set_title('Predicted vs. Ground Truth Relevance Over Time')
 
                 # Chart 2: Uncertainty
+                if args.uncertainty_threshold:
+                    axes[1].axhline(
+                        y=args.uncertainty_threshold,
+                        color="red",
+                        linestyle="--",
+                        linewidth=1.5,
+                        label=f"Threshold = {args.uncertainty_threshold:.2f}"
+                    )
                 axes[1].plot(x, uncertainty_scores, label='Uncertainty', color='tab:red', linewidth=2)
                 axes[1].set_ylabel('Uncertainty')
                 axes[1].set_xlabel('Frame')

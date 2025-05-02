@@ -26,7 +26,7 @@ from llava.conversation import conv_templates
 
 from models import build_model_and_tokenizer, fast_greedy_generate, parse_args
 from .datasets import FastAndAccurateStreamingVideoQADataset
-from test.arl_scout.prepare_data import generate_plot, TICKS
+from test.live_video.infer_live_video import infer_on_live_video, ARL_TICKS, HUBBLE_SPACE_TELESCOPE_TICKS
 
 
 class LiveInferForBenchmark:
@@ -207,7 +207,13 @@ class LiveInferForBenchmark:
         return response
 
     @torch.no_grad()
-    def inference(self):
+    def inference(self, verbose = False, total = None):
+        if verbose:
+            pbar = tqdm(
+                total=total,               # no known total
+                unit="frame",
+                dynamic_ncols=True
+            )
         model_response_list = [{'time': q[0], 'content': q[1], 'role': 'user'} for q in self.query_queue]
         while self.frame_embeds_queue:
             # 1. check if a user query is at current time
@@ -268,7 +274,9 @@ class LiveInferForBenchmark:
 
             # 5. update the video time
             self.video_time += 1 / self.frame_fps
-
+            if verbose:
+                pbar.update(1)
+                pbar.set_postfix_str(f"{self.video_time:.2f}s")
         return sorted(model_response_list, key=lambda x: x['time'])
 
 
@@ -300,7 +308,7 @@ def round_numbers(data, n):
 
 
 
-def load_individual_frames_for_testing(frame_folder, output_fps=1):
+def load_individual_frames_for_testing(frame_folder, start = None, end = None, output_fps=1):
     output_resolution=384
     frame_names = os.listdir(frame_folder)
     pad_color = (0, 0, 0)
@@ -311,6 +319,12 @@ def load_individual_frames_for_testing(frame_folder, output_fps=1):
     output_width = output_height = output_resolution
     
     for i in tqdm(range(len(frame_names))):
+        if start and i < start:
+            continue
+            
+        if end and i > end:
+            break
+
         full_path = os.path.join(frame_folder, f"frame{i:03d}.jpg")
         frame = Image.open(full_path)
         width, height = frame.size
@@ -474,6 +488,7 @@ if __name__ == '__main__':
                 continue
             conversation = list()
             conversation.append({"role": "system", "content": system_prompt})
+
             if args.no_query:
                 query = ""
 
@@ -496,7 +511,7 @@ if __name__ == '__main__':
 
 
     elif args.test_dataset == "hisum":
-        
+
         with open(args.video_metadata_file, 'r') as f:
             data = json.load(f)
         
@@ -577,145 +592,41 @@ if __name__ == '__main__':
         f_out.write(json.dumps(results, indent=4))
         f_out.flush()
     
-    elif args.test_dataset == "arl_scout":
+    elif args.test_dataset == "arl_scout" or args.test_dataset == "hubble_space" or args.test_dataset == "jkim_landing":
         frame_folder = args.input_dir
         output_file = args.output_fname
         parent_dir = os.path.dirname(output_file)
-        skip = True
-
-        if not skip:
+        skip = False
+        start = 0
+        end = None
+        if args.test_dataset == "arl_scout":
+            video_frames, fps, video_duration = load_individual_frames_for_testing(frame_folder, start=start, end=end)
+            ticks = ARL_TICKS
             caption = "what objects are in this room?"
-            query = random.choice(query_templates) % caption
-            # max_num_frames=100
-            max_num_frames = None
-            video_frames, fps, video_duration = load_individual_frames_for_testing(frame_folder)
-            
-            infer = LiveInferForBenchmark(args)
-            if video_frames == None:
-                raise ValueError("Error, no video frames")
-            conversation = list()
-            conversation.append({"role": "system", "content": system_prompt})
-            conversation.append({'role': 'user', 'content': query, 'time': 0})
 
-
-            infer.reset()
-            infer.set_fps(fps=fps)
-            infer.input_video_stream(video_frames)
-            infer.input_query_stream(conversation)
-            model_response_list = infer.inference()
-            model_response_formated = {}
-            for response in model_response_list:
-                if response["role"] == "assistant":
-                    model_response_formated[response["time"]] = response["content"]  
-            results = round_numbers(infer.debug_data_list, 3)
-            with open(output_file, "w") as f:
-                json.dump(results, f)
-        else:
-            with open(output_file, "r") as f:
-                results = json.load(f)
+        elif args.test_dataset == "hubble_space":
+            video_frames, fps, video_duration = load_video_for_testing(frame_folder, output_fps=args.frame_fps, return_true_frames=False, max_num_frames=None)    
+            ticks = HUBBLE_SPACE_TELESCOPE_TICKS
+            caption = "Launch of the Hubble Space Telescope, April 24-29 1990"
         
-        times = [d["time"] for d in results]
-        informative_scores = [d["informative_score"] for d in results]
-        relevance_scores = [d["relevance_score"] for d in results]
-        uncertainty_scores = [d["uncertainty_score"] for d in results]
-        # relevance_scores = np.convolve(relevance_scores, np.ones(5)/5, mode='same')
-
-        # Create the plot
-        
-        fig, ax = plt.subplots(figsize=(14, 7))
-        ax.plot(times, informative_scores, label="Informative Score", alpha=0.2)
-        ax.plot(times, relevance_scores, label="Relevance Score", color="BLACK")
-        ax.plot(times, uncertainty_scores, label="Uncertainty Score", alpha=0.4)
-
-        for idx, (start, end, label) in enumerate(TICKS):
-            color = f"C{idx % 10}"  # Cycle through matplotlib's default color cycle
-            alpha = 0.3
-            mid = (start + end) / 2
-            if start == end:
-                end += 1
-                alpha = 0.8
-                mid -= 3.5
-            ax.axvspan(start, end, ymin=0, ymax=1, color=color, alpha=alpha)
-            ax.text(mid, 0, label, rotation=90, va='bottom', ha='center', fontsize=25, color='black', clip_on=True)
-
-        ax.set_xlabel("Time")
-        ax.set_ylabel("Score")
-        ax.set_title("Scores over Time with Scene Annotations")
-        ax.legend()
-        ax.grid(True)
-
-        plt.tight_layout()
-        plt.savefig(os.path.join(parent_dir, "visualization.png"))
-        plt.show()
-
-        # plt.figure(figsize=(14, 7))
-        # plt.plot(times, informative_scores, label="Informative Score")
-        # plt.plot(times, relevance_scores, label="Relevance Score")
-        # plt.plot(times, uncertainty_scores, label="Uncertainty Score")
-        # plt.xlabel("Time")
-        # plt.ylabel("Score")
-        # plt.title("Scores over Time")
-        # plt.legend()
-        # plt.grid(True)
-        # plt.savefig(os.path.join(parent_dir, "visualization.png"))
-
-        os.makedirs(os.path.join(parent_dir, "stiched"), exist_ok=True)
-
-        stiched_img_paths = []
+        elif args.test_dataset == "jkim_landing":
+            video_frames, fps, video_duration = load_video_for_testing(frame_folder, output_fps=args.frame_fps, return_true_frames=False, max_num_frames=None)    
+            # print(len(video_frames), fps, video_duration)
+            video_frames = video_frames[60*14 + 38:] # video relevant after 14:38
+            video_duration -= 60*14 + 38
+            # print(len(video_frames), fps, video_duration)
+            ticks = []
+            caption = "NASA Astronaut Jonny Kim Soyuz MS-27 Docking"
         if not skip:
-            print(model_response_formated)
-        
-        for idx in range(len(results)):
-            # Load frame
-            frame_path = os.path.join(frame_folder, f"frame{idx:03d}.jpg")
-            frame_img = Image.open(frame_path).convert("RGB")
-            
-            agent_response = None
-            if not skip and idx in model_response_formated:
-                agent_response = model_response_formated[idx]
+            infer = LiveInferForBenchmark(args)
+        else:
+            infer = None
+        query = random.choice(query_templates) % caption
+        infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_file, parent_dir, frame_folder, ticks, fps)
 
-            # Generate plot
-            plot_img = generate_plot(idx, results, agent_response)
-
-            # Resize plot to match frame height
-            plot_img = plot_img.resize((plot_img.width * frame_img.height // plot_img.height, frame_img.height), resample=Image.LANCZOS)
-
-            # Stitch side-by-side
-            stitched_width = frame_img.width + plot_img.width
-            stitched_img = Image.new("RGB", (stitched_width, frame_img.height))
-            stitched_img.paste(frame_img, (0, 0))
-            stitched_img.paste(plot_img, (frame_img.width, 0))
-
-            # Save stitched image
-            stiched_img_path = os.path.join(parent_dir, "stiched", f"stitched_{idx}.jpg")
-            stiched_img_paths.append(stiched_img_path)
-            stitched_img.save(stiched_img_path)
-        
-        fps = 1
-
-        # Read first frame to get dimensions
-        frame = cv2.imread(stiched_img_paths[0])
-        height, width, layers = frame.shape
-
-        output_video_path = os.path.join(parent_dir, "arl_scout_results_stiched_video.mp4")
-
-        # Initialize video writer
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # 'mp4v' for .mp4 file
-        video = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
-
-        # Write each frame
-        for stiched_img in stiched_img_paths:
-            frame = cv2.imread(stiched_img)
-            video.write(frame)
-
-        video.release()
-        print(f"Video saved to {output_video_path}")
-        
-        print(f"Results saved at: {output_file}")
-    
     else:
         with open("paths.yaml", "r") as f:
-            dataset_args = yaml.safe_load(f)[args.test_dataset]
+            dataset_args = yaml.safe_load(f).get(args.test_dataset, {"alpha": 0.0, "beta": 1.5555, "epsilon": 1.0, "threshold": 2})
         
         if "threshold" in dataset_args:
             print(f"Dataset: {args.test_dataset} is using grid search param: threshold {dataset_args['threshold']}")

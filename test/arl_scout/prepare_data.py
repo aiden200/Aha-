@@ -55,41 +55,6 @@ def tag_important_segments(segments):
 
     return segments
 
-TICKS = [
-    (0, 0, "TV"),
-    (28, 28, "Dark Room"),
-    (48, 48, "Pitch Black"),
-    (58, 58, "Door"),
-    (78, 78, "bright room w/ shovel"),
-    (122, 122, "turn to door"),
-    (131, 161, "static at door"),
-    (166, 166, "rapid turn to TV room"),
-    (200, 200, "Moved closer to TV"),
-    (202, 245, "static"),
-    (245, 266, "Moved closer to TV, static"),
-    (266, 289, "static TV"),
-    (289, 298, "turn to wall/poster"),
-    (305, 305, "full turn to poster"),
-    (357, 357, "turn away from poster"),
-    (375, 375, "face hallway"),
-    (411, 426, "move into dark room"),
-    (445, 445, "face dark room window"),
-    (471, 471, "move to door"),
-    (503, 503, "move in dark room"),
-    (529, 529, "turn to lit area"),
-    (638, 638, "turn & move to new area"),
-    (696, 696, "big move to lit room"),
-    (725, 725, "slight turn"),
-    (767, 767, "move to calendar"),
-    (849, 871, "massive movement"),
-    (933, 933, "move to water jug"),
-    (955, 955, "turn to cubes"),
-    (1000, 1000, "turn to water jug"),
-    (1020, 1020, "move to water jug"),
-    (1031, 1031, "switch angle"),
-]
-
-
 def prepare_frames_for_model(folder):
     files = os.listdir(folder)
     

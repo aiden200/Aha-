@@ -287,7 +287,7 @@ This will automatically update the hyperparameters in `outputs/grid_search_param
 
 
 ## Distributed Training
-This model is very big, trained on 8 V100 GPUs, and you will probably need to utilize distributed training. [I've included instructions on how to train on the cloud, using Paperspace.](instructions/distributed_instructions.md)
+This model is very big, trained on 6xA6000 GPUs, and you will probably need to utilize distributed training. [I've included instructions on how to train on the cloud, using Paperspace.](instructions/distributed_instructions.md)
 
 # Fine-tuning
 
