@@ -596,25 +596,29 @@ if __name__ == '__main__':
         frame_folder = args.input_dir
         output_file = args.output_fname
         parent_dir = os.path.dirname(output_file)
-        skip = False
+        skip = True
         start = 0
         end = None
+        video_frames, fps, video_duration = None, None, None
         if args.test_dataset == "arl_scout":
-            video_frames, fps, video_duration = load_individual_frames_for_testing(frame_folder, start=start, end=end)
+            if not skip:
+                video_frames, fps, video_duration = load_individual_frames_for_testing(frame_folder, start=start, end=end)
             ticks = ARL_TICKS
             caption = "what objects are in this room?"
 
         elif args.test_dataset == "hubble_space":
-            video_frames, fps, video_duration = load_video_for_testing(frame_folder, output_fps=args.frame_fps, return_true_frames=False, max_num_frames=None)    
+            if not skip:
+                video_frames, fps, video_duration = load_video_for_testing(frame_folder, output_fps=args.frame_fps, return_true_frames=False, max_num_frames=None)    
             ticks = HUBBLE_SPACE_TELESCOPE_TICKS
             caption = "Launch of the Hubble Space Telescope, April 24-29 1990"
         
         elif args.test_dataset == "jkim_landing":
-            video_frames, fps, video_duration = load_video_for_testing(frame_folder, output_fps=args.frame_fps, return_true_frames=False, max_num_frames=None)    
-            # print(len(video_frames), fps, video_duration)
-            video_frames = video_frames[60*14 + 38:] # video relevant after 14:38
-            video_duration -= 60*14 + 38
-            # print(len(video_frames), fps, video_duration)
+            if not skip:
+                video_frames, fps, video_duration = load_video_for_testing(frame_folder, output_fps=args.frame_fps, return_true_frames=False, max_num_frames=None)    
+                # print(len(video_frames), fps, video_duration)
+                video_frames = video_frames[60*14 + 38:] # video relevant after 14:38
+                video_duration -= 60*14 + 38
+                # print(len(video_frames), fps, video_duration)
             ticks = []
             caption = "NASA Astronaut Jonny Kim Soyuz MS-27 Docking"
         if not skip:

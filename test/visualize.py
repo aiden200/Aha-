@@ -190,30 +190,46 @@ if __name__ == '__main__':
                 # importance_scores = np.array(importance_scores)
                 # importance_scores = (importance_scores - np.min(importance_scores)) / (np.max(importance_scores) - np.min(importance_scores))
                 # importance_scores = list(importance_scores)
+
+                # pred_scores = (pred_scores - np.min(pred_scores)) / (np.max(pred_scores) - np.min(pred_scores))
+                # ground_truth_frame_scores = (ground_truth_frame_scores - np.min(ground_truth_frame_scores)) / (np.max(ground_truth_frame_scores) - np.min(ground_truth_frame_scores))
                 
                 x = list(range(len(pred_scores)))
-                fig, axes = plt.subplots(2, 1, figsize=(12, 6), sharex=True, height_ratios=[2, 1])
+                # fig, axes = plt.subplots(2, 1, figsize=(12, 6), sharex=True, height_ratios=[2, 1])
+                fig, axes = plt.subplots(figsize=(12, 4))
                 # Chart 1: Predicted vs. Ground Truth Relevance
-                axes[0].plot(x, pred_scores, label='Predicted Relevance', color='tab:blue', linewidth=2)
-                axes[0].plot(x, importance_scores, label='Predicted Importance', color='tab:red', linewidth=2)
-                axes[0].plot(x, ground_truth_frame_scores, label='Ground Truth Relevance', color='tab:green', linestyle='--', linewidth=2)
-                axes[0].set_ylabel('Score')
-                axes[0].legend()
-                axes[0].set_title('Predicted vs. Ground Truth Relevance Over Time')
+                fig.patch.set_facecolor('#231f20')
+                axes.set_facecolor('#231f20')
 
-                # Chart 2: Uncertainty
-                if args.uncertainty_threshold:
-                    axes[1].axhline(
-                        y=args.uncertainty_threshold,
-                        color="red",
-                        linestyle="--",
-                        linewidth=1.5,
-                        label=f"Threshold = {args.uncertainty_threshold:.2f}"
-                    )
-                axes[1].plot(x, uncertainty_scores, label='Uncertainty', color='tab:red', linewidth=2)
-                axes[1].set_ylabel('Uncertainty')
-                axes[1].set_xlabel('Frame')
-                axes[1].set_title('Uncertainty Score Over Time')
+                axes.plot(x, pred_scores, label='Predicted Relevance', color='tab:blue', linewidth=2)
+                # axes.plot(x, importance_scores, label='Predicted Importance', color='tab:red', linewidth=2)
+                axes.plot(x, ground_truth_frame_scores, label='Ground Truth Relevance', color='tab:green', linestyle='--', linewidth=2)
+                axes.set_ylabel('Score', color="white")
+                axes.set_xlabel('Time', color="white")
+                axes.spines['top'].set_color('white')
+                axes.spines['bottom'].set_color('white')
+                axes.spines['right'].set_color('white')
+                axes.spines['left'].set_color('white')
+                axes.tick_params(axis='x', colors='white')
+                axes.tick_params(axis='y', colors='white')
+
+
+                axes.legend()
+                axes.set_title('Predicted vs. Ground Truth Relevance Over Time', color="white")
+
+                # # Chart 2: Uncertainty
+                # if args.uncertainty_threshold:
+                #     axes[1].axhline(
+                #         y=args.uncertainty_threshold,
+                #         color="red",
+                #         linestyle="--",
+                #         linewidth=1.5,
+                #         label=f"Threshold = {args.uncertainty_threshold:.2f}"
+                #     )
+                # axes[1].plot(x, uncertainty_scores, label='Uncertainty', color='tab:red', linewidth=2)
+                # axes[1].set_ylabel('Uncertainty')
+                # axes[1].set_xlabel('Frame')
+                # axes[1].set_title('Uncertainty Score Over Time')
 
                 plt.tight_layout()
                 plt.savefig(f"results_{show_count}.png")

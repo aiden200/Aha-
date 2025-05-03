@@ -2,12 +2,10 @@
 import collections, math, json, copy, random, os, csv, sys, yaml
 import cv2
 import matplotlib.pyplot as plt
+import numpy as np
 from PIL import Image
-
-
-
+from scipy.signal import find_peaks, savgol_filter
 from test.arl_scout.prepare_data import generate_plot
-
 
 
 ARL_TICKS = [
@@ -15,7 +13,7 @@ ARL_TICKS = [
     (28, 28, "Dark Room"),
     (48, 48, "Pitch Black"),
     (58, 58, "Door"),
-    (78, 78, "bright room w/ shovel"),
+    (78, 78, "Move to bright room w/ shovel"),
     (122, 122, "turn to door"),
     (131, 161, "static at door"),
     (166, 166, "rapid turn to TV room"),
@@ -66,7 +64,28 @@ HUBBLE_SPACE_TELESCOPE_TICKS = [
     (3299, 3299, "Astronauts exiting Shuttle"),
 ]
 
+def find_ticks(scores):
 
+    smoothed = savgol_filter(scores, window_length=15, polyorder=3)
+    thresh = smoothed.mean() + 0.5*smoothed.std()
+
+    # 4) find peaks that exceed that threshold, and are at least D frames apart  
+    fps = 1.0                        # or whatever your sampling rate is  
+    min_separation = 10             # seconds between distinct peaks  
+    distance = int(min_separation * fps)
+
+    peaks, props = find_peaks(
+        smoothed,
+        height=thresh,        # only peaks above this absolute value
+        prominence=0.02,      # only “sharp” spikes (tune as needed)
+        distance=distance
+    )
+
+    # 5) convert to times (seconds)
+    peak_times = peaks / fps
+
+    print("Detected spikes at:", peak_times)
+    return list(peak_times)
 
 
 def truncate_sig(x, sig=3):
@@ -137,7 +156,9 @@ def infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_
     ax.plot(times, relevance_scores, label="Relevance Score", color="BLACK")
     ax.plot(times, uncertainty_scores, label="Uncertainty Score", alpha=1.0)
 
+    gt_tics = []
     for idx, (start, end, label) in enumerate(ticks):
+        gt_tics.append(start)
         color = f"C{idx % 10}"  # Cycle through matplotlib's default color cycle
         alpha = 0.3
         mid = (start + end) / 2
@@ -147,6 +168,24 @@ def infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_
             mid -= 3.5
         ax.axvspan(start, end, ymin=0, ymax=1, color=color, alpha=alpha)
         ax.text(mid, 0, label, rotation=90, va='bottom', ha='center', fontsize=25, color='black', clip_on=True)
+    
+    automatic_tics = find_ticks(np.array(relevance_scores))
+    for t in automatic_tics:
+        real_time = t + 60*14 + 38
+        min = int(real_time // 60)
+        sec = int(real_time % 60)
+        print(f"{min}:{sec}")
+    
+
+    if 0 not in automatic_tics or 0.0 not in automatic_tics:
+        automatic_tics = [0] + automatic_tics
+    # print(automatic_tics)
+    # print(gt_tics)
+    for idx in automatic_tics:
+        
+        color = "black"
+        alpha = 1.0
+        ax.axvspan(idx, idx+1, ymin=0, ymax=1, color=color, alpha=alpha)
 
     ax.set_xlabel("Time")
     ax.set_ylabel("Score")
@@ -173,7 +212,7 @@ def infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_
     os.makedirs(os.path.join(parent_dir, "stiched"), exist_ok=True)
 
     stiched_img_paths = []
-    print(model_response_formated)
+    # print(model_response_formated)
     
     for idx in range(len(results)):
         # Load frame
@@ -222,3 +261,9 @@ def infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_
     print(f"Video saved to {output_video_path}")
     
     print(f"Results saved at: {output_file}")
+
+
+
+
+
+
