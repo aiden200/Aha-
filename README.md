@@ -44,7 +44,7 @@ This approach enables more efficient video understanding, making Aha! applicable
 
 
 <div align="center">
-    <img src="assets/astronaut_landing.gif", height="512">
+    <img src="assets/astronaut_landing.gif", alt="Aha! demo gif", width="75%">
     <p></p>
 </div>
 
@@ -354,7 +354,7 @@ This project is licensed under the [Apache License 2.0](LICENSE).
 If you find this work useful in your research, please consider citing:
 ```bibtex
 @misc{chang2025aha,
-      title={Aha! – When Has a Model Seen Enough? Adaptive Video Segmentation and Highlight Detection},
+      title={Aha! – Predicting What Matters Next: Online Highlight Detection Without Looking Ahead},
       author={Aiden Chang and Celso De Melo and Stephanie Lukin},
       year={2025},
       eprint={},
