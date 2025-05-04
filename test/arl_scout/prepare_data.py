@@ -66,27 +66,44 @@ def generate_plot(up_to_idx, data, agent_response):
     relevance_scores = [d["relevance_score"] for d in data[:up_to_idx+1] if d.get("role", "user") != "assistant"]
     uncertainty_scores = [d["uncertainty_score"] for d in data[:up_to_idx+1] if d.get("role", "user") != "assistant"]
 
-    ax.plot(times, informative_scores, label="Informative Score")
-    ax.plot(times, relevance_scores, label="Relevance Score")
-    ax.plot(times, uncertainty_scores, label="Uncertainty Score")
+    # ax.plot(times, informative_scores, label="Informative Score")
+    fig.patch.set_facecolor('#231f20')
+    ax.set_facecolor('#231f20')
+    ax.plot(times, relevance_scores, label="Relevance Score", color="#0092CC", linewidth=3)
+
+
+    # ax.plot(times, uncertainty_scores, label="Uncertainty Score")
     ax.set_xlim(0, data[-1]["time"])  # Fix x-axis to full time span
-    ax.set_ylim(0, 1)  # Fix y-axis from 0 to 1
-    ax.set_xlabel("Time")
-    ax.set_ylabel("Score")
-    ax.legend()
+    ax.set_ylim(0, 0.7)  # Fix y-axis from 0 to 1
+    ax.set_xlabel("Time", color="white")
+    ax.set_ylabel("Score", color="white")
+    # ax.legend()
     ax.grid(True)
 
-    if agent_response:
-        ax.text(
-            0.01, 0.95,  # x, y position (axes fraction)
-            f"Agent: {agent_response}",
-            transform=ax.transAxes,  # important: use axes coordinates, not data
-            fontsize=8,
-            va='top', ha='left',
-            wrap=True,
-            bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray')
-        )
+    # if agent_response:
+    #     ax.text(
+    #         0.01, 0.95,  # x, y position (axes fraction)
+    #         f"Agent: {agent_response}",
+    #         transform=ax.transAxes,  # important: use axes coordinates, not data
+    #         fontsize=8,
+    #         va='top', ha='left',
+    #         wrap=True,
+    #         bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray')
+    #     )
 
+    ax.spines['top'].set_color('white')
+    ax.spines['bottom'].set_color('white')
+    ax.spines['right'].set_color('white')
+    ax.spines['left'].set_color('white')
+    ax.tick_params(axis='x', colors='white')
+    ax.tick_params(axis='y', colors='white')
+
+    leg = ax.legend(
+        facecolor='black',   # legend box fill
+        edgecolor='white',   # legend box border
+    )
+    for text in leg.get_texts():
+        text.set_color('white')
     plt.tight_layout()
 
     buf = BytesIO()

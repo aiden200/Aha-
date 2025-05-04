@@ -210,7 +210,7 @@ def infer_and_generate_video(infer, query, skip, video_frames, system_prompt, ou
         stiched_img_paths.append(stiched_img_path)
         stitched_img.save(stiched_img_path)
     
-    fps = 120
+    fps = 2
 
     # Read first frame to get dimensions
     frame = cv2.imread(stiched_img_paths[0])
@@ -345,7 +345,7 @@ def infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_
     stiched_img_paths = []
     # print(model_response_formated)
     
-    for idx in range(len(results)):
+    for idx in tqdm(range(len(results))):
         # Load frame
         frame_path = os.path.join(frame_folder, f"frame{idx:03d}.jpg")
         frame_img = Image.open(frame_path).convert("RGB")
@@ -371,7 +371,7 @@ def infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_
         stiched_img_paths.append(stiched_img_path)
         stitched_img.save(stiched_img_path)
     
-    fps = 1
+    fps = 2
 
     # Read first frame to get dimensions
     frame = cv2.imread(stiched_img_paths[0])

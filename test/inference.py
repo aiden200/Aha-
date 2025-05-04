@@ -613,7 +613,7 @@ if __name__ == '__main__':
             caption = "Launch of the Hubble Space Telescope, April 24-29 1990"
         
         elif args.test_dataset == "jkim_landing":
-            if not skip:
+            if skip:
                 # print(len(video_frames), fps, video_duration)
                 video_frames, fps, video_duration = load_video_for_testing(frame_folder, output_fps=args.frame_fps, return_true_frames=False, max_num_frames=None)    
                 video_frames = video_frames[60*14 + 38:] # video relevant after 14:38

@@ -29,16 +29,24 @@
 # Introduction
 
 
-Aha! is a video-language model designed to recognize when enough information has been observed in a video, triggering reflection and segmentation at the right moments, just like human intuition during "Aha!" moments.
+Aha! is a video-language model that mimics human intuition by recognizing when important information has been seen.
 
-Unlike traditional video-language models that process continuously or respond at fixed intervals, Aha! dynamically determines when to pause, analyze, and extract key moments based on contextual importance.
+Unlike traditional models that analyze every frame or respond at fixed intervals, Aha! dynamically decides when to pause, reason, and act, capturing the essence of meaningful moments.
 
-By fine-tuning Qwen-7B with an importance-aware segmentation mechanism and integrating uncertainty-based decision-making, Aha! intelligently:
-- Segments video streams when enough information is available
-- Ranks and extracts key moments using task-aware importance scoring
-- Generates highlight reels with structured summarization techniques
+Built by fine-tuning Qwen-7B with a multimodal, importance-aware objective and incorporating uncertainty-based decision-making, Aha! can:
+- 🎯 Detect when enough context has accumulated to make informed predictions
 
-This approach enables more efficient video understanding, making Aha! applicable to autonomous agents, surveillance, video summarization, and decision-support systems.
+- 📊 Rank and extract key segments using task-aware importance scores
+
+- 📝 Generate structured highlight reels using Savitzky-Golay smoothing and time-domain peak detection to identify key moments.
+
+This approach enables more efficient video understanding, making Aha! applicable to autonomous agents, surveillance, video summarization, and decision-support systems. This is an example of our model running live on the [NASA Stream of Astronaut Jonny Kim Soyuz MS-27 Docking (55 minutes of video)](https://www.youtube.com/watch?v=b7Kk4r9DomA):
+
+
+<div align="center">
+    <img src="assets/astronaut_landing.gif", height="512">
+    <p></p>
+</div>
 
 
 # Installation
@@ -119,8 +127,8 @@ Inference requires at least 24GB VRAM. Tested on a single RTX 4090 GPU.
 
 
 # Inference
-## Download Our model
-<!-- 
+I've included a video link of how to set up and run our model: [link]()
+
 ## Download pretrained Model
 - Download checkpoints from HuggingFace: (https://huggingface.co/aiden200/Aha-) and put the files under folder `./outputs/aha`
 ```bash
@@ -128,7 +136,27 @@ mkdir outputs
 cd outputs
 git clone https://huggingface.co/aiden200/Aha- aha
 cd ..
-``` -->
+```
+
+## Input your own video
+You can either input the entire video (a lot faster because batching) or you can input a frame one by one. 
+
+Entire video:
+```python
+
+```
+
+Frame by frame:
+```python
+
+```
+
+After you finish running the code, you can generate a highlight reel using:
+```python
+
+```
+
+
 
 
 # Preparing the metadata
