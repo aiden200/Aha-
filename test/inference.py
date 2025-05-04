@@ -26,7 +26,7 @@ from llava.conversation import conv_templates
 
 from models import build_model_and_tokenizer, fast_greedy_generate, parse_args
 from .datasets import FastAndAccurateStreamingVideoQADataset
-from test.live_video.infer_live_video import infer_on_live_video, ARL_TICKS, HUBBLE_SPACE_TELESCOPE_TICKS
+from test.live_video.infer_live_video import infer_on_live_video, ARL_TICKS, HUBBLE_SPACE_TELESCOPE_TICKS, infer_and_generate_video
 
 
 class LiveInferForBenchmark:
@@ -614,8 +614,8 @@ if __name__ == '__main__':
         
         elif args.test_dataset == "jkim_landing":
             if not skip:
-                video_frames, fps, video_duration = load_video_for_testing(frame_folder, output_fps=args.frame_fps, return_true_frames=False, max_num_frames=None)    
                 # print(len(video_frames), fps, video_duration)
+                video_frames, fps, video_duration = load_video_for_testing(frame_folder, output_fps=args.frame_fps, return_true_frames=False, max_num_frames=None)    
                 video_frames = video_frames[60*14 + 38:] # video relevant after 14:38
                 video_duration -= 60*14 + 38
                 # print(len(video_frames), fps, video_duration)

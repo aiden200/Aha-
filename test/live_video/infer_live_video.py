@@ -4,8 +4,10 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
+import torch
 from scipy.signal import find_peaks, savgol_filter
 from test.arl_scout.prepare_data import generate_plot
+from tqdm import tqdm
 
 
 ARL_TICKS = [
@@ -104,6 +106,135 @@ def round_numbers(data, n):
         else:
             return round(data, n)
     return data
+
+
+
+def tensor_to_pil(img_tensor):
+    """
+    img_tensor: torch.Tensor of shape (3, H, W) 
+                or numpy array of shape (3, H, W),
+                with values either in [0,1] floats or [0,255] uint8.
+    Returns a PIL.Image in mode='RGB'.
+    """
+    # 1) If it’s a torch.Tensor, move to CPU
+    if isinstance(img_tensor, torch.Tensor):
+        x = img_tensor.detach().cpu()
+        # if float in [0,1], scale up to [0,255]
+        if x.dtype.is_floating_point:
+            x = (x * 255).clamp(0, 255).to(torch.uint8)
+        else:
+            x = x.to(torch.uint8)
+        arr = x.permute(1, 2, 0).numpy()              # -> (H, W, 3)
+    else:
+        # assume numpy array here
+        arr = np.transpose(img_tensor, (1, 2, 0))     # -> (H, W, 3)
+        if arr.dtype != np.uint8:
+            # float->[0,1] or other range
+            arr = (255 * np.clip(arr, 0, 1)).astype(np.uint8)
+
+    return Image.fromarray(arr, mode="RGB")
+
+
+def infer_and_generate_video(infer, query, skip, video_frames, system_prompt, output_file, parent_dir, frame_folder, ticks, fps):
+    verbose_output_file = os.path.join(parent_dir, "verbose.json")
+    if not skip:
+        if video_frames == None:
+            raise ValueError("Error, no video frames")
+        conversation = list()
+        conversation.append({"role": "system", "content": system_prompt})
+        conversation.append({'role': 'user', 'content': query, 'time': 0})
+
+
+        infer.reset()
+        infer.set_fps(fps=fps)
+        infer.input_video_stream(video_frames)
+        infer.input_query_stream(conversation)
+        model_response_list = infer.inference(verbose=True, total=len(video_frames))
+        
+
+        results = round_numbers(infer.debug_data_list, 3)
+        with open(output_file, "w") as f:
+            json.dump(results, f)
+
+        with open(verbose_output_file, "w") as f:
+            json.dump(model_response_list, f)
+    else:
+        with open(output_file, "r") as f:
+            results = json.load(f)
+        
+        with open(verbose_output_file, "r") as f:
+            model_response_list = json.load(f)
+    if video_frames == None:
+        raise ValueError("Error, no video frames")
+
+
+    model_response_formated = {} 
+    for response in model_response_list:
+        if response["role"] == "assistant":
+            model_response_formated[response["time"]] = response["content"] 
+        
+
+    
+    times = [d["time"] for d in results]
+    informative_scores = [d["informative_score"] for d in results]
+    relevance_scores = [d["relevance_score"] for d in results]
+    uncertainty_scores = [d["uncertainty_score"] for d in results]
+
+    os.makedirs(os.path.join(parent_dir, "stiched"), exist_ok=True)
+
+    stiched_img_paths = []
+    # print(model_response_formated)
+    
+    for idx in tqdm(range(len(results))):
+        frame_img = tensor_to_pil(video_frames[idx])
+
+
+        agent_response = None
+        if idx in model_response_formated:
+            agent_response = model_response_formated[idx]
+
+        # Generate plot
+        plot_img = generate_plot(idx, results, agent_response)
+
+        # Resize plot to match frame height
+        plot_img = plot_img.resize((plot_img.width * frame_img.height // plot_img.height, frame_img.height), resample=Image.LANCZOS)
+
+        # Stitch side-by-side
+        stitched_width = frame_img.width + plot_img.width
+        stitched_img = Image.new("RGB", (stitched_width, frame_img.height))
+        stitched_img.paste(frame_img, (0, 0))
+        stitched_img.paste(plot_img, (frame_img.width, 0))
+
+        # Save stitched image
+        stiched_img_path = os.path.join(parent_dir, "stiched", f"stitched_{idx}.jpg")
+        stiched_img_paths.append(stiched_img_path)
+        stitched_img.save(stiched_img_path)
+    
+    fps = 120
+
+    # Read first frame to get dimensions
+    frame = cv2.imread(stiched_img_paths[0])
+    height, width, layers = frame.shape
+
+    output_video_path = os.path.join(parent_dir, "arl_scout_results_stiched_video.mp4")
+
+    # Initialize video writer
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # 'mp4v' for .mp4 file
+    video = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
+
+    # Write each frame
+    for stiched_img in stiched_img_paths:
+        frame = cv2.imread(stiched_img)
+        video.write(frame)
+
+    video.release()
+    print(f"Video saved to {output_video_path}")
+    
+    print(f"Results saved at: {output_file}")
+
+
+
+
 
 def infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_file, parent_dir, frame_folder, ticks, fps):
     verbose_output_file = os.path.join(parent_dir, "verbose.json")

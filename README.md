@@ -115,7 +115,7 @@ pip install deepspeed \
 # Required Specs
 This model trained 1 epoch off of 6xA6000 GPUs, over 24 hours. You need at least 48GB worth of VRAM on each GPU to tune it.
 
-Inference requires at least 24GB VRAM. Tested on 2xRTX 4090 GPUs. 
+Inference requires at least 24GB VRAM. Tested on a single RTX 4090 GPU. 
 
 
 # Inference

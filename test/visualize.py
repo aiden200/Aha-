@@ -201,9 +201,9 @@ if __name__ == '__main__':
                 fig.patch.set_facecolor('#231f20')
                 axes.set_facecolor('#231f20')
 
-                axes.plot(x, pred_scores, label='Predicted Relevance', color='tab:blue', linewidth=2)
+                axes.plot(x, pred_scores, label='Predicted Relevance', color='#0092CC', linewidth=2)
                 # axes.plot(x, importance_scores, label='Predicted Importance', color='tab:red', linewidth=2)
-                axes.plot(x, ground_truth_frame_scores, label='Ground Truth Relevance', color='tab:green', linestyle='--', linewidth=2)
+                axes.plot(x, ground_truth_frame_scores, label='Ground Truth Relevance', color='#DCD427', linestyle='--', linewidth=2)
                 axes.set_ylabel('Score', color="white")
                 axes.set_xlabel('Time', color="white")
                 axes.spines['top'].set_color('white')
@@ -213,8 +213,15 @@ if __name__ == '__main__':
                 axes.tick_params(axis='x', colors='white')
                 axes.tick_params(axis='y', colors='white')
 
+                leg = axes.legend(
+                    facecolor='black',   # legend box fill
+                    edgecolor='white',   # legend box border
+                )
+                for text in leg.get_texts():
+                    text.set_color('white')
 
-                axes.legend()
+
+                # axes.legend()
                 axes.set_title('Predicted vs. Ground Truth Relevance Over Time', color="white")
 
                 # # Chart 2: Uncertainty
