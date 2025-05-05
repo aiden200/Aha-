@@ -30,10 +30,10 @@ from test.live_video.infer_live_video import infer_on_live_video, ARL_TICKS, HUB
 
 
 class LiveInferForBenchmark:
-    def __init__(self, args) -> None:
+    def __init__(self, args, peft_model_id=None) -> None:
         assert not (args.bf16 and args.fp16), "only one of --bf16 true and --fp16 true can be set"
 
-        self.peft_model_id = "aiden200/aha"  
+        self.peft_model_id = "aiden200/aha" if not peft_model_id else peft_model_id
         self.torch_dtype = torch.bfloat16 if args.bf16 else torch.float16 #if args.fp16 else torch.float32
         self.model, self.tokenizer = build_model_and_tokenizer(is_training=False, set_vision_inside=True, torch_dtype=self.torch_dtype, **asdict(args))
         self.model.eval()
@@ -347,15 +347,70 @@ def load_individual_frames_for_testing(frame_folder, start = None, end = None, o
     
     
     return torch.tensor(np.stack(frame_list)), output_fps, video_duration
-        
 
 
-def load_video_for_testing(video_file, output_fps=2, return_true_frames=False, max_num_frames=None):
-    output_resolution=384
-    # max_num_frames = None
+
+
+def dropout_simultion(frame, w, h, dropout_type="quality"):
+    if dropout_type == "quality":
+        degraded = cv2.resize(frame, (64, 64), interpolation=cv2.INTER_LINEAR)
+        frame = cv2.resize(degraded, (w, h), interpolation=cv2.INTER_NEAREST)
+        frame = cv2.GaussianBlur(frame, (5, 5), 0)
+    elif dropout_type == "block_noise":
+        block_size = 32
+        noise = np.random.randint(0, 50, (block_size, block_size, 3), dtype=np.uint8)
+        for y in range(0, frame.shape[0], block_size):
+            for x in range(0, frame.shape[1], block_size):
+                if np.random.rand() < 0.1:  # 10% of blocks corrupted
+                    frame[y:y+block_size, x:x+block_size] = noise
+    elif dropout_type=="color_banding":
+        frame = (frame // 16) * 16
+    elif dropout_type == "blackout":
+        frame[:] = 0
+    
+    return frame
+    
+
+
+def get_dropout_times(video_path, dropout_percentage=0.2):
+    cap = cv2.VideoCapture(video_path)
+    input_fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    video_duration = frame_count / input_fps
+
+    dropout_times = []
+
+    current_dropout_duration = 0
+    max_dropout_duration = video_duration * dropout_percentage
+    while current_dropout_duration < max_dropout_duration:
+        dropout_timestamp = random.randint(0, video_duration)
+        w = random.randint(3, 6)
+        s = max(0, dropout_timestamp - w)
+        e = min(video_duration, dropout_timestamp + w)
+        dropout_times.append([s, e])
+        max_dropout_duration += e - s
+    
+    return dropout_times
+
+
+
+
+
+
+
+
+def load_video_for_testing(
+    video_file,
+    output_fps=2,
+    return_true_frames=False,
+    max_num_frames=None,
+    dropout_intervals=None, 
+    dropout_type="quality"
+):
+    output_resolution = 384
     pad_color = (0, 0, 0)
     cap = cv2.VideoCapture(video_file)
-    # Get original video properties
+
     input_fps = cap.get(cv2.CAP_PROP_FPS)
     frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
     video_duration = frame_count / input_fps
@@ -366,24 +421,35 @@ def load_video_for_testing(video_file, output_fps=2, return_true_frames=False, m
     output_fps = output_fps if output_fps > 0 else max_num_frames / video_duration
     num_frames_total = math.ceil(video_duration * output_fps)
     frame_sec = [i / output_fps for i in range(num_frames_total)]
+    
     frame_list, cur_time, frame_index = [], 0, 0
     true_frame_index = 0
     true_frame_index_list = []
+
+    def is_dropout(t):
+        if dropout_intervals:
+            return any(start <= t <= end for start, end in dropout_intervals)
+        return False
+
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
+
         if frame_index < len(frame_sec) and cur_time >= frame_sec[frame_index]:
+            if is_dropout(cur_time):
+                # Downsample and upsample to simulate quality degradation
+                frame = dropout_simultion(frame, input_width, input_height, dropout_type=dropout_type)
+
+            # Resize keeping aspect ratio
             if input_width > input_height:
-                # Landscape video: scale width to the resolution, adjust height
                 new_width = output_resolution
                 new_height = int((input_height / input_width) * output_resolution)
             else:
-                # Portrait video: scale height to the resolution, adjust width
                 new_height = output_resolution
                 new_width = int((input_width / input_height) * output_resolution)
+
             resized_frame = cv2.resize(frame, (new_width, new_height))
-            # pad the frame
             canvas = cv2.copyMakeBorder(
                 resized_frame,
                 top=(output_height - new_height) // 2,
@@ -391,18 +457,24 @@ def load_video_for_testing(video_file, output_fps=2, return_true_frames=False, m
                 left=(output_width - new_width) // 2,
                 right=(output_width - new_width + 1) // 2,
                 borderType=cv2.BORDER_CONSTANT,
-                value=pad_color
+                value=pad_color,
             )
+
             if return_true_frames:
                 true_frame_index_list.append(true_frame_index)
-            
+
+            # Format to CHW RGB
             frame_list.append(np.transpose(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB), (2, 0, 1)))
             frame_index += 1
+
         if max_num_frames and len(frame_list) >= max_num_frames:
             break
+
         cur_time += 1 / input_fps
         true_frame_index += 1
+
     cap.release()
+
 
     if not frame_list:
         return None, None, None, None
