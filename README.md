@@ -62,15 +62,15 @@ pip install -r requirements.txt
 ```
 
 
-2. Install torch compiled with cuda. Install them together using the instructions provided by [pytorch.org](https://pytorch.org).
 
 
-3. Install llava. If you run into any issues check the [official repository download instructions.](https://github.com/LLaVA-VL/LLaVA-NeXT)
+2. Install llava. If you run into any issues check the [official repository download instructions.](https://github.com/LLaVA-VL/LLaVA-NeXT)
 ```bash
 cd LLaVA_NeXT
 pip install -e ".[train]"
 cd ..
 ```
+3. Install torch compiled with cuda. Install them together using the instructions provided by [pytorch.org](https://pytorch.org).
 
 4. Install flash-attention following the instructions in [https://github.com/Dao-AILab/flash-attention](https://github.com/Dao-AILab/flash-attention). If you have difficulties installing it, add `--attn_implementation sdpa` in every command to use the sdpa implementation of transformer attention for train or inference.
 ```bash
