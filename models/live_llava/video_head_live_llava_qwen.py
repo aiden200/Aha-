@@ -156,6 +156,7 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
         if inputs_embeds is None:
             inputs_embeds = self.joint_embed(input_ids, frames)
 
+
         outputs = self.model(
             attention_mask=attention_mask,
             position_ids=position_ids,
@@ -188,7 +189,6 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
 
         # NOTE: all labels used here are already shifted in data collator
         ce_loss_fct = CrossEntropyLoss(ignore_index=-100)
-        # mse_loss_fct = MSELoss()
         rel_loss_fct = nn.SmoothL1Loss()
         loss = 0.
 
@@ -252,7 +252,6 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
                 ref_loss = torch.tensor(0.0, device=relevance_logits.device)
 
 
-            # min_log_var = math.log(1 / (2 * math.pi))  # ≈ -1.8379
             max_log_var = 1.5
             min_log_var = -4.0
             log_variance_clamped = torch.clamp(log_variance, min=min_log_var, max=max_log_var)
@@ -303,11 +302,6 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
                 "train/video_loss": video_loss.item()*self.video_loss_weight if video_loss != 0 else None,
                 "train/total_loss": loss.item()
             }
-            # print(f" Mean pred relevance: {relevance_logits_valid.mean().item():.4f}")
-            # print(f" Actual Mean relevance: {relevance_labels_valid.mean().item():.4f}")
-            # print(relevance_labels_valid)
-            # print(relevance_labels)
-            print(weighted_logs)
 
             loss_logs = {k: v for k, v in weighted_logs.items() if v is not None}
             wandb.log(loss_logs)
@@ -386,7 +380,4 @@ if __name__ == '__main__':
     print(args.to_dict())
     model, tokenizer = build_video_head_live_llava_qwen(is_training=True, **args.to_dict())
     print(model.config, tokenizer)
-    for name, param in model.named_parameters():
-        if param.numel() == 0:
-            print(f"⚠️ Param with 0 elements: {name}, shape: {param.shape}, requires_grad: {param.requires_grad}")
 

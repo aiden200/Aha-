@@ -631,6 +631,8 @@ if __name__ == '__main__':
         with open(args.pred_file, "r") as f:
             predictions = json.load(f)
         
+        args.uncertainty_penalty=0
+        
         # args.uncertainty_penalty = 0
         
         

@@ -27,12 +27,13 @@ from llava.conversation import conv_templates
 from models import build_model_and_tokenizer, fast_greedy_generate, parse_args
 from .datasets import FastAndAccurateStreamingVideoQADataset
 from test.live_video.infer_live_video import infer_on_live_video, ARL_TICKS, HUBBLE_SPACE_TELESCOPE_TICKS, infer_and_generate_video
+from test.sink_cache import SinkCache
 
 
 class LiveInferForBenchmark:
-    def __init__(self, args, peft_model_id=None) -> None:
+    def __init__(self, args, peft_model_id=None, sink_cache=True) -> None:
         assert not (args.bf16 and args.fp16), "only one of --bf16 true and --fp16 true can be set"
-
+        self.sink_cache = sink_cache
         self.peft_model_id = "aiden200/aha" if not peft_model_id else peft_model_id
         self.torch_dtype = torch.bfloat16 if args.bf16 else torch.float16 #if args.fp16 else torch.float32
         self.model, self.tokenizer = build_model_and_tokenizer(is_training=False, set_vision_inside=True, torch_dtype=self.torch_dtype, **asdict(args))
@@ -81,7 +82,10 @@ class LiveInferForBenchmark:
         self._added_stream_prompt_ids = self.tokenizer.apply_chat_template([{}], add_stream_prompt=True, return_tensors='pt').to('cuda')
         self._added_stream_generation_ids = self.tokenizer.apply_chat_template([{}], add_stream_generation_prompt=True, return_tensors='pt').to('cuda')
         self.repetition_penalty = args.repetition_penalty
-
+        self.init_vision_time = False
+        if self.sink_cache:
+            self.past_key_values = SinkCache(window_length=512, num_sink_tokens=16)
+        self.sink_attention_over_time = []
         self.reset()
 
     def set_fps(self, fps=None, frame_interval=None):
@@ -103,12 +107,16 @@ class LiveInferForBenchmark:
         self.video_tensor = None
         self.last_ids = torch.tensor([[]], device='cuda', dtype=torch.long)
         self.past_key_values = None
+        if self.sink_cache:
+            self.past_key_values = SinkCache(window_length=512, num_sink_tokens=8)
         self.debug_data_list = list()
         self.generated_token_ids = list()
+        self.init_vision_time = False
         self.num_frames_no_reply = 0
         self.stream_end_prob_list = list()
         self.stream_end_score_sum = 0
         self.consecutive_n_frames = 0
+        self.sink_attention_over_time = []
 
     @torch.no_grad()
     def load_video(self, video_path):
@@ -146,6 +154,8 @@ class LiveInferForBenchmark:
             if turn['role'] == 'user':
                 self.query_queue.append((turn['time'], turn['content']))
 
+
+
     def _encode_frame(self):
         """
         returns: informative_score, relevance_score, uncertainty_score
@@ -154,8 +164,9 @@ class LiveInferForBenchmark:
             return None, None
 
         video_time, frame_embeds = self.frame_embeds_queue.popleft()
-        if not self.past_key_values:
+        if not self.init_vision_time:
             self.last_ids = self._start_ids
+            self.init_vision_time = True
         elif self.last_role == 'assistant' and not self.remove_assistant_turns:
             self.last_ids = torch.cat([self.last_ids, self._added_stream_prompt_ids], dim=1)
         else:       # last_role is stream, now we just input another frame
@@ -164,9 +175,29 @@ class LiveInferForBenchmark:
             self.model.get_input_embeddings()(self.last_ids).view(1, -1, self.hidden_size),
             frame_embeds.view(1, -1, self.hidden_size).to(self.last_ids.device),
         ], dim=1)
-        outputs = self.model(inputs_embeds=inputs_embeds, use_cache=True, past_key_values=self.past_key_values, return_dict=True)
-        # print(outputs)
+        # print(self.past_key_values)
+        # print("SinkCache keys:")
+        # for k, v in self.past_key_values.items():
+        #     print(f"{k}: {v.shape}, device={v.device}")
+
+        outputs = self.model(inputs_embeds=inputs_embeds, use_cache=True, past_key_values=self.past_key_values, output_attentions=False, return_dict=True)
         self.past_key_values = outputs.past_key_values
+        # print("starting new kv cache")
+        # for layer_cache in outputs.past_key_values:
+        #     print(type(layer_cache), len(layer_cache), layer_cache[0].shape)
+
+        # print(outputs)
+        # sink_indices = list(range(8))  # assuming first 8 tokens are sink tokens
+        # print(outputs.attentions.shape)
+        # attn = outputs.attentions[-1][0]  # shape: [seq_len, seq_len]
+        # current_token_attn = attn[-1]     # shape: [seq_len]
+        # sink_attn = current_token_attn[sink_indices]
+        # avg_attn = np.mean([layer_attn[0][-1, sink_indices].detach().cpu().numpy()
+        #                     for layer_attn in outputs.attentions], axis=0)
+        # self.sink_attention_over_time.append(sink_attn)
+
+        # self.past_key_values = self._update_sink_cache(outputs.past_key_values)
+
         self.frame_idx += 1
         self.num_frames_no_reply += 1
         informative_score = outputs.informative_logits[0,-1].softmax(dim=-1)[1].item()
@@ -223,6 +254,8 @@ class LiveInferForBenchmark:
             # 2. input a frame, and update the scores list
             video_scores, uncertainty_score = self._encode_frame()
             self.debug_data_list.append(dict(time=self.video_time, **video_scores,uncertainty_score=uncertainty_score))
+
+            # print(self.past_key_values.shape)
             # self.debug_data_list.append(dict(time=self.video_time, **video_scores))
 
             # 3. check the scores, if need to generate a response
@@ -277,7 +310,17 @@ class LiveInferForBenchmark:
             if verbose:
                 pbar.update(1)
                 pbar.set_postfix_str(f"{self.video_time:.2f}s")
-        return sorted(model_response_list, key=lambda x: x['time'])
+
+        # sink_attention_matrix = np.stack(self.sink_attention_over_time)  # shape: [T, num_sink_tokens]
+        # plt.figure(figsize=(10, 6))
+        # plt.imshow(sink_attention_matrix.T, aspect='auto', cmap='viridis')
+        # plt.xlabel("Timestep")
+        # plt.ylabel("Sink Token Index")
+        # plt.title("Attention to Sink Tokens Over Time")
+        # plt.colorbar(label="Attention Weight")
+        # plt.tight_layout()
+        # plt.show()
+        # return sorted(model_response_list, key=lambda x: x['time'])
 
 
 class DoNothingDataCollator:
@@ -668,7 +711,7 @@ if __name__ == '__main__':
         frame_folder = args.input_dir
         output_file = args.output_fname
         parent_dir = os.path.dirname(output_file)
-        skip = True
+        skip = False
         start = 0
         end = None
         video_frames, fps, video_duration = None, None, None
@@ -685,7 +728,7 @@ if __name__ == '__main__':
             caption = "Launch of the Hubble Space Telescope, April 24-29 1990"
         
         elif args.test_dataset == "jkim_landing":
-            if skip:
+            if not skip:
                 # print(len(video_frames), fps, video_duration)
                 video_frames, fps, video_duration = load_video_for_testing(frame_folder, output_fps=args.frame_fps, return_true_frames=False, max_num_frames=None)    
                 video_frames = video_frames[60*14 + 38:] # video relevant after 14:38
