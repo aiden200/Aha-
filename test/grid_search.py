@@ -423,6 +423,7 @@ def grid_search(args, param_grid, uncertainty=False):
 
 
     dataset_output_dir = dataset_args[args.test_dataset]["output_dir"]
+    print(dataset_output_dir)
     args.gold_file = dataset_args[args.test_dataset]["gold_file"]
     args.pred_file = os.path.join(dataset_output_dir, dataset_args[args.test_dataset]["pred_file"]) 
     

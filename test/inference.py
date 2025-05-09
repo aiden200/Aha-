@@ -31,7 +31,7 @@ from test.sink_cache import SinkCache
 
 
 class LiveInferForBenchmark:
-    def __init__(self, args, peft_model_id=None, sink_cache=True) -> None:
+    def __init__(self, args, peft_model_id=None, sink_cache=False) -> None:
         assert not (args.bf16 and args.fp16), "only one of --bf16 true and --fp16 true can be set"
         self.sink_cache = sink_cache
         self.peft_model_id = "aiden200/aha" if not peft_model_id else peft_model_id
@@ -83,10 +83,10 @@ class LiveInferForBenchmark:
         self._added_stream_generation_ids = self.tokenizer.apply_chat_template([{}], add_stream_generation_prompt=True, return_tensors='pt').to('cuda')
         self.repetition_penalty = args.repetition_penalty
         self.init_vision_time = False
-        if self.sink_cache:
-            self.past_key_values = SinkCache(window_length=512, num_sink_tokens=16)
+        self._init_sink_cache()
         self.sink_attention_over_time = []
         self.reset()
+        self.all_windows = []
 
     def set_fps(self, fps=None, frame_interval=None):
         assert fps is not None or frame_interval is not None
@@ -107,8 +107,7 @@ class LiveInferForBenchmark:
         self.video_tensor = None
         self.last_ids = torch.tensor([[]], device='cuda', dtype=torch.long)
         self.past_key_values = None
-        if self.sink_cache:
-            self.past_key_values = SinkCache(window_length=512, num_sink_tokens=8)
+        self._init_sink_cache()
         self.debug_data_list = list()
         self.generated_token_ids = list()
         self.init_vision_time = False
@@ -117,6 +116,14 @@ class LiveInferForBenchmark:
         self.stream_end_score_sum = 0
         self.consecutive_n_frames = 0
         self.sink_attention_over_time = []
+    
+
+    def _init_sink_cache(self, window_length=2048, num_sink_tokens=32):
+        if self.sink_cache:
+            self.past_key_values = SinkCache(window_length=window_length, num_sink_tokens=num_sink_tokens)
+        else:
+            self.past_key_values = None
+
 
     @torch.no_grad()
     def load_video(self, video_path):
@@ -182,7 +189,12 @@ class LiveInferForBenchmark:
 
         outputs = self.model(inputs_embeds=inputs_embeds, use_cache=True, past_key_values=self.past_key_values, output_attentions=False, return_dict=True)
         self.past_key_values = outputs.past_key_values
+
+        # print(self.past_key_values[0][0].shape[2])
         # print("starting new kv cache")
+        # print(outputs.past_key_values.cos_sin_rerotation_cache)
+        # for k,v in zip(outputs.past_key_values.key_cache, outputs.past_key_values.value_cache):
+        #     print(k.shape, v.shape)
         # for layer_cache in outputs.past_key_values:
         #     print(type(layer_cache), len(layer_cache), layer_cache[0].shape)
 
@@ -310,7 +322,10 @@ class LiveInferForBenchmark:
             if verbose:
                 pbar.update(1)
                 pbar.set_postfix_str(f"{self.video_time:.2f}s")
+        
 
+        self.all_windows.append(self.past_key_values[0][0].shape[2])
+        print(self.past_key_values[0][0].shape[2])
         # sink_attention_matrix = np.stack(self.sink_attention_over_time)  # shape: [T, num_sink_tokens]
         # plt.figure(figsize=(10, 6))
         # plt.imshow(sink_attention_matrix.T, aspect='auto', cmap='viridis')
@@ -620,6 +635,9 @@ if __name__ == '__main__':
             res['debug_data'] = round_numbers(infer.debug_data_list, 3)
             # print(res['debug_data'])
             results.append(res)
+        
+        print(infer.all_windows)
+        print(sum(infer.all_windows)/len(infer.all_windows))
         f_out = open(args.output_fname, 'w')
         f_out.write(json.dumps(results, indent=4))
         f_out.flush()

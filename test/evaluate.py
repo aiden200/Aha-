@@ -628,10 +628,10 @@ if __name__ == '__main__':
         args.epsilon = best_params["tvsum"]["epsilon"]
         args.uncertainty_threshold = best_params["tvsum"]["uncertainty_threshold"]
         args.uncertainty_penalty = best_params["tvsum"]["uncertainty_penalty"]
+        print(f"Best params - Alpha:{args.alpha}, Beta:{args.beta}, Epsilon:{args.epsilon}, thresh:{args.uncertainty_threshold}, penalty:{args.uncertainty_penalty}")
         with open(args.pred_file, "r") as f:
             predictions = json.load(f)
         
-        args.uncertainty_penalty=0
         
         # args.uncertainty_penalty = 0
         
