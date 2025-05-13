@@ -263,11 +263,11 @@ class VideoHeadLiveLlavaQwenForCausalLM(Qwen2ForCausalLM, LiveMixin):
             # Gaussian NLL loss
             nll_loss = (residual ** 2) / (2 * variance_valid + 1e-6)  + 0.5 * torch.log(2 * math.pi * variance_valid)
             uncertainty_loss = nll_loss.mean()
-            uncertainty_loss = torch.clamp(uncertainty_loss, min=0)
 
             # Maximizing diversity
             uncertainty_penalty = -1e-3 * torch.std(log_variance_clamped)
             uncertainty_loss = uncertainty_loss + uncertainty_penalty
+            uncertainty_loss = torch.clamp(uncertainty_loss, min=0)
             print(uncertainty_loss, uncertainty_penalty)
 
 
