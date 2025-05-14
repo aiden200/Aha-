@@ -597,6 +597,7 @@ if __name__ == '__main__':
                 pred_dict[video_uuid] = pred_scores
                 gt_dict[video_uuid] = ground_truth_frame_scores
 
+            # print(predictions)
             results = hisum_evaluate_scores(gt_dict, pred_dict)
 
             # Get the first video_uuid
@@ -619,7 +620,7 @@ if __name__ == '__main__':
             plt.show()
             plt.savefig("hisum_resuts.png")
 
-    elif args.func == 'tvsum': 
+    elif args.func == 'tvsum' or args.func == "tvsum_degraded": 
         with open("outputs/grid_search_params.json", "r") as f:
             best_params = json.load(f)
         
@@ -653,11 +654,7 @@ if __name__ == '__main__':
             for i in range(len(prediction['debug_data'])):
                 e = prediction['debug_data'][i]
                 true_frame = true_frames_list[i]
-                # video_times.append(e['video_time'])
-                # pred_scores.append(
-                #         args.alpha *e["informative_score"]\
-                #             + args.beta * e['relevance_score'] \
-                #                 + args.epsilon * e["uncertainty_score"])
+
                 
                 curr_pred_score = args.alpha * e["informative_score"] + args.beta * e['relevance_score']
                 if e["uncertainty_score"] >= args.uncertainty_threshold:

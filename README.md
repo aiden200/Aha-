@@ -1,5 +1,5 @@
-# Official implementation of paper: *Aha! – Predicting What Matters Next: Online Highlight Detection Without Looking Ahead*
-
+<!-- # Official implementation of paper: *Aha! – Predicting What Matters Next: Online Highlight Detection Without Looking Ahead* -->
+# Anonymized Name for Paper Submission 
 <div align="center">
     <img src="assets/cover_photo.jpg">
     <p></p>
@@ -22,6 +22,7 @@
 - [Training](#training)
   - [Distributed Training](#distributed-Training)
 - [Fine-tuning](#fine-tuning)
+- [Usage Guidelines](#usage-guidelines)
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
 - [Citation](#citation)
@@ -29,9 +30,9 @@
 # Introduction
 
 
-Aha! is a video-language model that mimics human intuition by recognizing when important information has been seen.
+<!-- Aha! is a video-language model that mimics human intuition by recognizing when important information has been seen. -->
 
-Unlike traditional models that analyze every frame or respond at fixed intervals, Aha! dynamically decides when to pause, reason, and act, capturing the essence of meaningful moments.
+<!-- Unlike traditional models that analyze every frame or respond at fixed intervals, Aha! dynamically decides when to pause, reason, and act, capturing the essence of meaningful moments. -->
 
 Built by fine-tuning Qwen-7B with a multimodal, importance-aware objective and incorporating uncertainty-based decision-making, Aha! can:
 - 🎯 Detect when enough context has accumulated to make informed predictions
@@ -330,6 +331,13 @@ cd ..
 
 In the `scripts/train.sh` file, add this line:
 ```--lora_pretrained outputs/aha  \```
+
+
+# Usage Guidelines
+
+This model should not be deployed in contexts that may infringe on personal privacy or be used to reinforce harmful societal biases. If used in sensitive domains (e.g., surveillance, defense), additional safeguards such as privacy-preserving filters, access controls, and domain-specific audits are strongly recommended. By using this model, you agree to adhere to responsible AI deployment practices.
+
+
 
 # Acknowledgements
 This work was conducted as part of the author's AEOP Fellowship, with compute resources and mentorship provided by the Army Research Laboratory, West Coast (ARL-W).

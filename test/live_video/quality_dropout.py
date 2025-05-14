@@ -19,7 +19,7 @@ def dropout_simultion(frame, w, h, dropout_type="quality"):
                     noise_to_apply = universal_noise_block[0:actual_block_height, 0:actual_block_width]
                     frame[y : y + actual_block_height, x : x + actual_block_width] = noise_to_apply
     elif dropout_type=="color_banding":
-        frame = (frame // 16) * 16
+        frame = (frame // 64) * 64
     elif dropout_type == "blackout":
         frame[:] = 0
     
@@ -55,10 +55,10 @@ def get_dropout_times(video_path, dropout_percentage=0.2):
 
 def load_video_for_testing_with_dropout(
     video_file,
-    output_fps=2,
+    output_fps=1,
     return_true_frames=False,
     max_num_frames=None,
-    dropout_intervals=None
+    dropout_types=["quality", "block_noise", "color_banding", "blackout"]
 ):
     output_resolution = 384
     pad_color = (0, 0, 0)
@@ -74,6 +74,8 @@ def load_video_for_testing_with_dropout(
     output_fps = output_fps if output_fps > 0 else max_num_frames / video_duration
     num_frames_total = math.ceil(video_duration * output_fps)
     frame_sec = [i / output_fps for i in range(num_frames_total)]
+
+    dropout_intervals = get_dropout_segments_with_types(num_frames_total, input_fps, possible_dropout_types=dropout_types)
     
     frame_list, cur_time, frame_index = [], 0, 0
     true_frame_index = 0
@@ -141,6 +143,34 @@ def load_video_for_testing_with_dropout(
 
     return torch.tensor(np.stack(frame_list)), output_fps, video_duration
 
+
+
+import torch
+import numpy as np
+import cv2
+from pathlib import Path
+
+def save_tensor_as_video(tensor, output_path, fps=1):
+    """
+    Saves a tensor of shape (T, 3, H, W) as a video file.
+    """
+    assert tensor.ndim == 4 and tensor.shape[1] == 3, "Expected tensor shape (T, 3, H, W)"
+    T, C, H, W = tensor.shape
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Initialize video writer
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    writer = cv2.VideoWriter(str(output_path), fourcc, fps, (W, H))
+
+    for i in range(T):
+        frame = tensor[i].numpy()  # shape (3, H, W)
+        frame = np.transpose(frame, (1, 2, 0))  # CHW -> HWC
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # RGB -> BGR
+        writer.write(frame.astype(np.uint8))
+
+    writer.release()
+    print(f"Saved video to {output_path}")
 
 
 
@@ -300,8 +330,8 @@ if __name__ == "__main__":
     total_dropout_duration = sum([d[1]-d[0] for d in dropout_segments_with_types])
     print(f"Total dropout duration: {total_dropout_duration} out of {num_frames_total}. Approximately {total_dropout_duration/num_frames_total*100}% of the video.")
     # print(dropout_segments_with_types)
-    values = load_video_for_testing_with_dropout(video_path, output_fps=1,dropout_intervals=dropout_segments_with_types)
-    print(values)
+    video_frames, fps, video_duration, true_frames_list =  load_video_for_testing_with_dropout(video_path, output_fps=1, return_true_frames=True)
+    save_tensor_as_video(video_frames, "test.mp4", fps=1)
     exit(0)
     segment_iter = iter(dropout_segments_with_types)
     current_dropout_segment = next(segment_iter, None)

@@ -28,10 +28,11 @@ from models import build_model_and_tokenizer, fast_greedy_generate, parse_args
 from .datasets import FastAndAccurateStreamingVideoQADataset
 from test.live_video.infer_live_video import infer_on_live_video, ARL_TICKS, HUBBLE_SPACE_TELESCOPE_TICKS, infer_and_generate_video
 from test.sink_cache import SinkCache
+from test.live_video.quality_dropout import *
 
 
 class LiveInferForBenchmark:
-    def __init__(self, args, peft_model_id=None, sink_cache=False) -> None:
+    def __init__(self, args, peft_model_id=None, sink_cache=True) -> None:
         assert not (args.bf16 and args.fp16), "only one of --bf16 true and --fp16 true can be set"
         self.sink_cache = sink_cache
         self.peft_model_id = "aiden200/aha" if not peft_model_id else peft_model_id
@@ -286,27 +287,6 @@ class LiveInferForBenchmark:
                 self.stream_end_score_sum = 0
             if self.stream_end_prob_threshold is not None and stream_end_score > self.stream_end_prob_threshold:
                 need_response = True
-            
-            
-            # if self.uncertainty_lock:
-            #     # we add on how many frames we locked down
-            #     self.uncertainty_lock += 1
-            
-            # # If uncertainty is high, wait
-            # if need_response and self.uncertainty_wait_threshold is not None and \
-            #     uncertainty_score > self.uncertainty_wait_threshold:
-
-            #     # Another way we can define the threshold
-            #     # if self.num_frames_no_reply > self.max_wait_frames:
-            #     #     need_response = True
-            #     # else:
-            #     #     need_response = False
-
-            #     if self.uncertainty_lock < self.max_wait_frames:
-            #         need_response = False
-            #     else:
-            #         need_response = True
-            #         self.uncertainty_lock = 0
 
             # 4. record the responses
             if need_response:
@@ -324,8 +304,8 @@ class LiveInferForBenchmark:
                 pbar.set_postfix_str(f"{self.video_time:.2f}s")
         
 
-        self.all_windows.append(self.past_key_values[0][0].shape[2])
-        print(self.past_key_values[0][0].shape[2])
+        # self.all_windows.append(self.past_key_values[0][0].shape[2])
+        # print(self.past_key_values[0][0].shape[2])
         # sink_attention_matrix = np.stack(self.sink_attention_over_time)  # shape: [T, num_sink_tokens]
         # plt.figure(figsize=(10, 6))
         # plt.imshow(sink_attention_matrix.T, aspect='auto', cmap='viridis')
@@ -409,46 +389,7 @@ def load_individual_frames_for_testing(frame_folder, start = None, end = None, o
 
 
 
-def dropout_simultion(frame, w, h, dropout_type="quality"):
-    if dropout_type == "quality":
-        degraded = cv2.resize(frame, (64, 64), interpolation=cv2.INTER_LINEAR)
-        frame = cv2.resize(degraded, (w, h), interpolation=cv2.INTER_NEAREST)
-        frame = cv2.GaussianBlur(frame, (5, 5), 0)
-    elif dropout_type == "block_noise":
-        block_size = 32
-        noise = np.random.randint(0, 50, (block_size, block_size, 3), dtype=np.uint8)
-        for y in range(0, frame.shape[0], block_size):
-            for x in range(0, frame.shape[1], block_size):
-                if np.random.rand() < 0.1:  # 10% of blocks corrupted
-                    frame[y:y+block_size, x:x+block_size] = noise
-    elif dropout_type=="color_banding":
-        frame = (frame // 16) * 16
-    elif dropout_type == "blackout":
-        frame[:] = 0
-    
-    return frame
-    
 
-
-def get_dropout_times(video_path, dropout_percentage=0.2):
-    cap = cv2.VideoCapture(video_path)
-    input_fps = cap.get(cv2.CAP_PROP_FPS)
-    frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-    video_duration = frame_count / input_fps
-
-    dropout_times = []
-
-    current_dropout_duration = 0
-    max_dropout_duration = video_duration * dropout_percentage
-    while current_dropout_duration < max_dropout_duration:
-        dropout_timestamp = random.randint(0, video_duration)
-        w = random.randint(3, 6)
-        s = max(0, dropout_timestamp - w)
-        e = min(video_duration, dropout_timestamp + w)
-        dropout_times.append([s, e])
-        max_dropout_duration += e - s
-    
-    return dropout_times
 
 
 
@@ -588,7 +529,7 @@ if __name__ == '__main__':
     # infer = LiveInferForBenchmark(args)
     
     
-    if args.test_dataset == "tvsum":
+    if args.test_dataset == "tvsum" or args.test_dataset == "tvsum_degraded":
         with open(args.video_metadata_file, 'r') as f:
             data = json.load(f)
         
@@ -613,7 +554,12 @@ if __name__ == '__main__':
             query = random.choice(query_templates) % captions[video_uuid]["query"]
 
             max_num_frames = None
-            video_frames, fps, video_duration, true_frames_list = load_video_for_testing(video_path, output_fps=args.frame_fps, return_true_frames=True, max_num_frames=max_num_frames)    
+            if args.test_dataset == "tvsum":
+                video_frames, fps, video_duration, true_frames_list = load_video_for_testing(video_path, output_fps=args.frame_fps, return_true_frames=True, max_num_frames=max_num_frames)    
+            else:
+                dropout_types = ["blackout"] # ["quality", "block_noise", "color_banding", "blackout"]
+                video_frames, fps, video_duration, true_frames_list =  load_video_for_testing_with_dropout(video_path, output_fps=args.frame_fps, return_true_frames=True, max_num_frames=max_num_frames, dropout_types=dropout_types) 
+                
             if video_frames == None:
                 continue
             conversation = list()
@@ -636,8 +582,6 @@ if __name__ == '__main__':
             # print(res['debug_data'])
             results.append(res)
         
-        print(infer.all_windows)
-        print(sum(infer.all_windows)/len(infer.all_windows))
         f_out = open(args.output_fname, 'w')
         f_out.write(json.dumps(results, indent=4))
         f_out.flush()
@@ -655,7 +599,7 @@ if __name__ == '__main__':
         assert os.path.exists(anno_path) and os.path.exists(h5_file) and os.path.exists(hisum_metadata)
         with open(anno_path, "r") as f:
             # videos = json.load(f)["test_keys"]
-            videos = json.load(f)["test_keys"]
+            videos = json.load(f)["test_keys"][:4]
         
         video_info = {}
         infer = LiveInferForBenchmark(args)
@@ -684,7 +628,7 @@ if __name__ == '__main__':
                 if video_id in video_info:
                     video_filepath = f"{video_info[video_id]['youtube_id']}.mp4"
                     try:
-                        # checking if we managed to download the video
+                    # checking if we managed to download the video
                         if video_filepath in all_files:
                             success_vids += 1
                             importance_scores = list(hdf[video_id]["gtscore"])
