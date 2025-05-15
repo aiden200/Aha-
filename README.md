@@ -1,5 +1,5 @@
-<!-- # Official implementation of paper: *Aha! – Predicting What Matters Next: Online Highlight Detection Without Looking Ahead* -->
-# Anonymized Name for Paper Submission 
+# Official implementation of paper: *Aha! – Predicting What Matters Next: Online Highlight Detection Without Looking Ahead*
+
 <div align="center">
     <img src="assets/cover_photo.jpg">
     <p></p>
@@ -32,7 +32,7 @@
 
 <!-- Aha! is a video-language model that mimics human intuition by recognizing when important information has been seen. -->
 
-<!-- Unlike traditional models that analyze every frame or respond at fixed intervals, Aha! dynamically decides when to pause, reason, and act, capturing the essence of meaningful moments. -->
+Unlike traditional models that analyze every frame or respond at fixed intervals, Aha! dynamically decides when to pause, reason, and act, capturing the essence of meaningful moments.
 
 Built by fine-tuning Qwen-7B with a multimodal, importance-aware objective and incorporating uncertainty-based decision-making, Aha! can:
 - 🎯 Detect when enough context has accumulated to make informed predictions
