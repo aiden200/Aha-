@@ -79,14 +79,6 @@ MAX_JOBS=4 pip install flash-attn --no-build-isolation --no-cache-dir
 ```
 
 5. Optional: you can download the weights of the model from [Huggingface](https://huggingface.co/aiden200/aha), or you can let the script automatically download the weights every run.
-<!-- 5. Download MMDuet checkpoints from HuggingFace: [https://huggingface.co/wangyueqian/MMDuet](https://huggingface.co/wangyueqian/MMDuet) and put the files under folder `./outputs/mmduet`.
-
-```bash
-mkdir outputs
-cd outputs
-git clone https://huggingface.co/wangyueqian/MMDuet mmduet
-cd ..
-``` -->
 
 
 <details>
