@@ -233,6 +233,7 @@ def smooth_pred_list(pred_list, window_size=4):
 
 def normalize_pred_list(pred_list):
     max_num, min_num = max(pred_list), min(pred_list)
+    # print(pred_list)
     pred_list = [(p - min_num) / (max_num - min_num) for p in pred_list]
     return pred_list
 
@@ -393,7 +394,6 @@ if __name__ == '__main__':
         args.beta = best_params["qvh"]["beta"]
         args.epsilon = best_params["qvh"]["epsilon"]
         args.uncertainty_threshold = best_params["qvh"]["uncertainty_threshold"]
-        args.uncertainty_penalty = best_params["qvh"]["uncertainty_penalty"]
 
         pred_examples = [json.loads(line) for line in open(args.pred_file)]
         gold_examples = load_jsonl(args.gold_file)
@@ -412,15 +412,10 @@ if __name__ == '__main__':
                     for e in example['debug_data']:
                         video_times.append(e['time'])
                         if 'relevance_score' in e:
-                            # pred_scores.append(e['relevance_score'][1])
-                            # pred_scores.append(
-                            #     args.alpha * e['informative_score'] \
-                            #         + args.beta * e['relevance_score'] \
-                            #             + args.epsilon * e['uncertainty_score'])
                             curr_pred_score = args.alpha * e["informative_score"] + args.beta * e['relevance_score']
                             if e["uncertainty_score"] >= args.uncertainty_threshold:
                                 diff = e["uncertainty_score"] - args.uncertainty_threshold
-                                penalty = diff * args.uncertainty_penalty
+                                penalty = diff * args.epsilon
                                 curr_pred_score -= penalty
                             pred_scores.append(curr_pred_score)
 
@@ -462,6 +457,7 @@ if __name__ == '__main__':
         args.alpha = best_params["charades"]["alpha"]
         args.beta = best_params["charades"]["beta"]
         args.epsilon = best_params["charades"]["epsilon"]
+        args.uncertainty_threshold = best_params["charades"]["uncertainty_threshold"]
 
         if 'answer' in gold_examples[0] and 'saliency_scores' in gold_examples[0]['answer']:
             # this is a qvh dataset, convert it to charades format
@@ -479,9 +475,15 @@ if __name__ == '__main__':
                     for e in pred_example['debug_data']:
                         video_times.append(e['time'])
                         if 'relevance_score' in e:
-                            pred_scores.append(args.alpha * e['informative_score'] \
-                                               + args.beta * e['relevance_score'] \
-                                                + args.epsilon * e['uncertainty_score'])
+                            # pred_scores.append(args.alpha * e['informative_score'] \
+                            #                    + args.beta * e['relevance_score'] \
+                            #                     + args.epsilon * e['uncertainty_score'])
+                            curr_pred_score = args.alpha * e["informative_score"] + args.beta * e['relevance_score']
+                            if e["uncertainty_score"] >= args.uncertainty_threshold:
+                                diff = e["uncertainty_score"] - args.uncertainty_threshold
+                                penalty = diff * args.epsilon
+                                curr_pred_score -= penalty
+                            pred_scores.append(curr_pred_score)
                         else:
                             pred_scores.append(0)
 
@@ -539,7 +541,6 @@ if __name__ == '__main__':
         args.beta = best_params["hisum"]["beta"]
         args.epsilon = best_params["hisum"]["epsilon"]
         args.uncertainty_threshold = best_params["hisum"]["uncertainty_threshold"]
-        args.uncertainty_penalty = best_params["hisum"]["uncertainty_penalty"]
 
         print(args.alpha, args.beta, args.epsilon)
 
@@ -568,15 +569,10 @@ if __name__ == '__main__':
                 pred_scores = list()
                 for i in range(1, min(len(prediction['debug_data']), len(vid_ground_truth))):
                     e = prediction['debug_data'][i]
-                    # pred_scores.append(e['relevance_score'])
-                    # pred_scores.append(
-                    #     args.alpha *e["informative_score"]\
-                    #         + args.beta * e['relevance_score'] \
-                    #             + args.epsilon * e["uncertainty_score"])
                     curr_pred_score = args.alpha * e["informative_score"] + args.beta * e['relevance_score']
                     if e["uncertainty_score"] >= args.uncertainty_threshold:
                         diff = e["uncertainty_score"] - args.uncertainty_threshold
-                        penalty = diff * args.uncertainty_penalty
+                        penalty = diff * args.epsilon
                         curr_pred_score -= penalty
                     pred_scores.append(curr_pred_score)
                     ground_truth_frame_scores.append(vid_ground_truth[i-1])
@@ -628,8 +624,8 @@ if __name__ == '__main__':
         args.beta = best_params["tvsum"]["beta"]
         args.epsilon = best_params["tvsum"]["epsilon"]
         args.uncertainty_threshold = best_params["tvsum"]["uncertainty_threshold"]
-        args.uncertainty_penalty = best_params["tvsum"]["uncertainty_penalty"]
-        print(f"Best params - Alpha:{args.alpha}, Beta:{args.beta}, Epsilon:{args.epsilon}, thresh:{args.uncertainty_threshold}, penalty:{args.uncertainty_penalty}")
+
+        print(f"Best params - Alpha:{args.alpha}, Beta:{args.beta}, Epsilon:{args.epsilon}, thresh:{args.uncertainty_threshold}")
         with open(args.pred_file, "r") as f:
             predictions = json.load(f)
         
@@ -659,7 +655,7 @@ if __name__ == '__main__':
                 curr_pred_score = args.alpha * e["informative_score"] + args.beta * e['relevance_score']
                 if e["uncertainty_score"] >= args.uncertainty_threshold:
                     diff = e["uncertainty_score"] - args.uncertainty_threshold
-                    penalty = diff * args.uncertainty_penalty
+                    penalty = diff * args.epsilon
                     curr_pred_score -= penalty
                 pred_scores.append(curr_pred_score)
 

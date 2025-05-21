@@ -439,6 +439,7 @@ def load_video_for_testing(
             if is_dropout(cur_time):
                 # Downsample and upsample to simulate quality degradation
                 frame = dropout_simultion(frame, input_width, input_height, dropout_type=dropout_type)
+                raise ValueError("Depricated")
 
             # Resize keeping aspect ratio
             if input_width > input_height:
@@ -543,10 +544,11 @@ if __name__ == '__main__':
                     "query": caption,
                 }
 
+
         results = []
         infer = LiveInferForBenchmark(args)
 
-
+        
 
         for video_name_with_extension in tqdm(data):
             video_uuid = video_name_with_extension[:-4]
@@ -557,13 +559,14 @@ if __name__ == '__main__':
             if args.test_dataset == "tvsum":
                 video_frames, fps, video_duration, true_frames_list = load_video_for_testing(video_path, output_fps=args.frame_fps, return_true_frames=True, max_num_frames=max_num_frames)    
             else:
-                dropout_types = ["blackout"] # ["quality", "block_noise", "color_banding", "blackout"]
+                dropout_types = ["block_noise"] # ["quality", "block_noise", "color_banding", "blackout"]
                 video_frames, fps, video_duration, true_frames_list =  load_video_for_testing_with_dropout(video_path, output_fps=args.frame_fps, return_true_frames=True, max_num_frames=max_num_frames, dropout_types=dropout_types) 
                 
             if video_frames == None:
                 continue
             conversation = list()
             conversation.append({"role": "system", "content": system_prompt})
+
 
             if args.no_query:
                 query = ""
@@ -582,6 +585,8 @@ if __name__ == '__main__':
             # print(res['debug_data'])
             results.append(res)
         
+        # print(f"MAX: {max(infer.all_windows)}")
+        
         f_out = open(args.output_fname, 'w')
         f_out.write(json.dumps(results, indent=4))
         f_out.flush()
@@ -599,7 +604,7 @@ if __name__ == '__main__':
         assert os.path.exists(anno_path) and os.path.exists(h5_file) and os.path.exists(hisum_metadata)
         with open(anno_path, "r") as f:
             # videos = json.load(f)["test_keys"]
-            videos = json.load(f)["test_keys"][:4]
+            videos = json.load(f)["test_keys"]
         
         video_info = {}
         infer = LiveInferForBenchmark(args)
