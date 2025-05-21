@@ -1,5 +1,6 @@
 import random, torch, tqdm, os, subprocess, torchvision, pathlib, submitit, math
 import cv2
+import numpy as np
 from itertools import takewhile
 try:
     torchvision.set_video_backend('video_reader')
@@ -27,6 +28,29 @@ def reformat_example_for_debug(data):
     if isinstance(data, (list, tuple)):
         return [reformat_example_for_debug(v) for v in data]
     return data
+
+
+def dropout_simultion(frame, w, h, dropout_type="quality"):
+    if dropout_type == "quality":
+        degraded = cv2.resize(frame, (64, 64), interpolation=cv2.INTER_LINEAR)
+        frame = cv2.resize(degraded, (w, h), interpolation=cv2.INTER_NEAREST)
+        frame = cv2.GaussianBlur(frame, (5, 5), 0)
+    elif dropout_type == "block_noise":
+        block_size = 32
+        universal_noise_block = np.random.randint(0, 50, (block_size, block_size, 3), dtype=np.uint8)
+        for y in range(0, frame.shape[0], block_size):
+            for x in range(0, frame.shape[1], block_size):
+                if np.random.rand() < 0.1:  # 10% of blocks corrupted
+                    actual_block_height = min(block_size, frame.shape[0] - y)
+                    actual_block_width = min(block_size, frame.shape[1] - x)
+                    noise_to_apply = universal_noise_block[0:actual_block_height, 0:actual_block_width]
+                    frame[y : y + actual_block_height, x : x + actual_block_width] = noise_to_apply
+    elif dropout_type=="color_banding":
+        frame = (frame // 64) * 64
+    elif dropout_type == "blackout":
+        frame[:] = 0
+    
+    return frame
 
 
 class DictWithTo(dict):

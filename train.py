@@ -57,6 +57,8 @@ def train_model(args, local_rank, global_rank):
 
     with open("configs/wandb/wandb.config", 'r') as f:
         wandb_config = yaml.safe_load(f)
+        
+    # print(args)
 
     run=None
     if global_rank == 0:
@@ -84,7 +86,6 @@ def train_model(args, local_rank, global_rank):
     print(f"[Rank {global_rank}] Distributed initialized? {torch.distributed.is_initialized()}")
     print(f"[Rank {global_rank}] Backend: {torch.distributed.get_backend()}")
 
-
     # We load the datasets.
     train_dataset_config = json.load(open(args.dataset_config))
 
@@ -92,8 +93,6 @@ def train_model(args, local_rank, global_rank):
     train_dataset = build_concat_train_dataset_from_config(
         tokenizer=tokenizer, config=train_dataset_config
     )
-
-
 
 
     data_collator = get_data_collator(tokenizer=tokenizer, image_processor=image_processor, model_config=model.config, **asdict(args))

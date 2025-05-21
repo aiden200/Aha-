@@ -89,7 +89,7 @@ cd ..
 ``` -->
 
 
-<details Open>
+<details>
 <summary> Common Problems </summary>
 
 *Note 1:* If you get a `bitsandbytes` error, try running:
@@ -119,7 +119,7 @@ pip install deepspeed \
   --global-option="build_ext" \
   --global-option="-j8"
 ```
-</details>
+</details><br>
 
 # Required Specs
 This model trained 1 epoch off of 6xA6000 GPUs, over 24 hours. You need at least 48GB worth of VRAM on each GPU to tune it.
@@ -193,10 +193,10 @@ This should give you a structure like this.
 │   │   └── annotations
 │   │       ├── mr_hisum_metadata.csv
 │   │       └── split.json
-│   ├── qvh
+│   ├── HIHD
 │   │   └── annotations
-│   │       ├── highlight_val-random_prompt.json
-│   │       └── highlight_val_release.jsonl
+│   │       ├── HIHD_metadata.csv
+│   │       ├── youtube_links.txt
 │   ├── shot2story
 │   │   └── annotations
 │   │       ├── dvc_train-human_anno-0.25_0.5_earlier.json
@@ -236,6 +236,10 @@ This should give you a structure like this.
   - Download the validation youtube videos and place them in the `datasets/hisum/videos` folder.
   - Run `scripts/inference/hisum.sh`
 
+- Charades data preparation
+  - Prepare the Charades videos following the [official instructions](https://prior.allenai.org/projects/charades). Place them in `datasets/charades/videos` folder.
+  - Run `scripts/inference/charades.sh`
+
 - YouCook2 data preparation
   - Prepare the youcook2 videos following the [official instructions](https://opendatalab.com/OpenDataLab/YouCook2). Place them in `datasets/youcook2/videos` folder.
   - Run `scripts/inference/youcook2.sh`
@@ -246,21 +250,14 @@ This should give you a structure like this.
   - **Note:** You need at least 140GB of VRAM locally to run a quantized version of a 70B llama model. 
   - Run `scripts/inference/magqa.sh`
 
-- Charades data preparation
-  - Prepare the Charades videos following the [official instructions](https://prior.allenai.org/projects/charades). Place them in `datasets/charades/videos` folder.
-  - Run `scripts/inference/charades.sh`
 
-- QVHighlights data preparation
-  - Prepare the QVHighlights videos following the [instructions](https://github.com/jayleicn/moment_detr/blob/main/data/README.md). Place them in `datasets/qvh/videos` folder.
-  - Run `scripts/inference/qvh.sh`
 
 # Training
 
 ## Data preparation
-- Mr.Hisum data preparation
-  - Prepare the `mr_hisum.h5` file following the instructions of the [official repo](https://github.com/MRHiSum/MR.HiSum). 
-  - Place the `mr_hisum.h5` file in the `datasets/hisum/annotations` folder.
-  - Download the train youtube videos and place them in the `datasets/hisum/videos` folder.
+- HIHD data preparation
+  - Download the train youtube videos and place them in the `datasets/HIHD/videos` folder.
+  - All youtube videos are listed in [datasets/HIHD/annotations/youtube_links.txt](datasets/HIHD/annotations/youtube_links.txt)
 - Shot2Story data preparation
   - Prepare the shot2Story videos following the [official instructions](https://huggingface.co/mhan/shot2story-videos). 
   - Place them in `datasets/shot2story/videos` folder.
@@ -270,7 +267,7 @@ This should give you a structure like this.
 
 
 
-Since some of these datasets (especially Mr.HiSum) are very big, you can always specify the video path in the `configs/datasets/aha_config.json` file where the datasets exist on your local machine.  
+Since some of these datasets (especially HIHD) are very big, you can always specify the video path in the `configs/datasets/aha_config.json` file where the datasets exist on your local machine.  
 
 *note:* I've left a script to help the download processes at `datasets/download_tools`
 
