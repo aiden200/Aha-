@@ -19,7 +19,6 @@ logger = transformers.logging.get_logger('inference')
 
 from models import parse_args
 from .dvc.eval_dvc import eval_with_files 
-from .qvh.eval import eval_submission, load_jsonl
 from .datasets import FastAndAccurateStreamingVideoQADataset
 from .inference import LiveInferForBenchmark, DoNothingDataCollator, round_numbers
 from .evaluate import normalize_pred_list, is_time_in_span, calculate_iou, qvh_to_charades_format
@@ -35,11 +34,8 @@ def score_worker(args_tuple):
         with h5py.File(hdf_path, "r") as hdf:
             score = hisum_score_calculation(predictions, hdf, alpha, beta, epsilon, uncertainty_threshold)
 
-    elif dataset == "tvsum":
+    elif dataset == "tvsum" or dataset == "tvsum_degraded":
         score = tvsum_score_calculation(predictions, ground_truths, alpha, beta, epsilon, uncertainty_threshold)
-    
-    elif dataset == "qvh":
-        score = qvh_eval(predictions, ground_truths, alpha, beta, epsilon, uncertainty_threshold)
     
     elif dataset == "charades":
         score = charades_eval(predictions, ground_truths, alpha, beta, epsilon, uncertainty_threshold)
@@ -98,7 +94,6 @@ def tvsum_score_calculation(predictions, ground_truths, alpha, beta, epsilon=Non
         for i in range(len(prediction['debug_data'])):
             e = prediction['debug_data'][i]
             true_frame = true_frames_list[i]
-            # video_times.append(e['video_time'])
 
             curr_pred_score = alpha * e["informative_score"] + beta * e['relevance_score']
             if e["uncertainty_score"] >= uncertainty_threshold:
@@ -184,32 +179,6 @@ def youcook2_eval(test_args, pred_examples, gold_examples, gold_file, pred_file)
     return results
 
 
-def qvh_eval(predictions, ground_truths, alpha, beta, epsilon, uncertainty_threshold):
-    reformatted_pred_list = list()
-
-    for example in predictions:
-        
-        frame_interval = example['debug_data'][1]['time'] - example['debug_data'][0]['time']
-        two_sec_frames = int(2 / frame_interval)
-        video_times, pred_scores = list(), list()
-        for e in example['debug_data']:
-            video_times.append(e['time'])
-            if 'relevance_score' in e:
-                curr_pred_score = alpha * e["informative_score"] + beta * e['relevance_score']
-                if e["uncertainty_score"] >= uncertainty_threshold:
-                    diff = e["uncertainty_score"] - uncertainty_threshold
-                    penalty = diff * epsilon
-                    curr_pred_score -= penalty
-                pred_scores.append(curr_pred_score)
-            else:
-                pred_scores.append(0)
-
-        pred_saliency_scores = [sum(pred_scores[i: i + two_sec_frames]) for i in range(0, len(pred_scores), two_sec_frames)]
-        reformatted_pred_list.append({'qid': example['question_id'], 'pred_saliency_scores': pred_saliency_scores})
-
-    results = eval_submission(reformatted_pred_list, ground_truths, verbose=False, match_number=False)
-    score = results['HL-min-VeryGood']['HL-mAP']
-    return score
 
 
 def charades_eval(predictions, ground_truths, alpha, beta, epsilon, uncertainty_threshold):
@@ -254,172 +223,36 @@ def charades_eval(predictions, ground_truths, alpha, beta, epsilon, uncertainty_
     return recall_0_5
 
 
-def grid_search_with_inference(args, param_grid):
-
-    with open("paths.yaml", "r") as f:
-        all_args = yaml.safe_load(f)
-        yc_args = all_args["youcook2"]
-        pretrained_args = all_args["pretrained_args"]
-    os.environ['RANK'] = "0"
-    test_args = parse_args('test')
-
-    test_args.lora_pretrained = pretrained_args["lora_pretrained"]
-    test_args.llm_pretrained = pretrained_args["llm_pretrained"]
-    test_args.bf16 = pretrained_args["bf16"]
-
-    test_args.test_dataset = yc_args["test_dataset"]
-    test_args.input_dir = yc_args["input_dir"]
-    test_args.frame_fps = yc_args["frame_fps"]
-    test_args.max_num_frames = yc_args["max_num_frames"]
-    test_args.test_fname = yc_args["test_fname"]
-    test_args.stream_end_score_sum_threshold = yc_args["stream_end_score_sum_threshold"]
-    test_args.remove_assistant_turns = yc_args["remove_assistant_turns"]
-    test_args.start_idx = yc_args["start_idx"]
-    test_args.score_heads = yc_args["score_heads"]
-
-
-    with open(all_args["grid_search"]["save_path"], "r") as f:
-        best_args_json = json.load(f)
-
-    
-    test_args.start_idx = 0
-    test_args.end_idx = 25
-
-    gold_file = yc_args["gold_file"]
-    gs_output_file = yc_args["gridsearch_output_file"]
-    gs_output_file = os.path.join(yc_args["output_dir"], "eval", gs_output_file)
- 
-    
-    all_results = {"best_result": {
-                        "best_score": float("-inf"), 
-                        "best_params": None,
-                        "all_scores": None
-                        }, 
-                    "all_params": {
-
-                        }
-                }
-
-    
-    print(test_args)
-    infer = LiveInferForBenchmark(test_args)
-    
-        
-
-    for threshold in tqdm(param_grid["threshold"]):
-        infer.reset()
-        test_args.output_fname = f"{yc_args['output_dir']}/eval/youcook2_val-thres_sum_{str(threshold)}-rm_ass_turns-pred.json"
-
-
-        test_args.threshold = threshold
-
-        dataset = FastAndAccurateStreamingVideoQADataset(
-                data_file=test_args.test_fname, video_base_folder=test_args.input_dir,
-                start_idx=test_args.start_idx, end_idx=test_args.end_idx,
-                output_fps=test_args.frame_fps, output_resolution=test_args.frame_resolution, max_num_frames=test_args.max_num_frames,
-                time_instruction_format=test_args.time_instruction_format, system_prompt=test_args.system_prompt
-            )
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4, collate_fn=DoNothingDataCollator())
-        f_out = open(test_args.output_fname, 'w')
-        
-        for data_i, data in enumerate(dataloader):
-            question_id, video_frames, conversation, fps, video_duration = data
-            if question_id is None: continue
-            infer.reset()
-            # print(f"num frames and fps for {question_id}: {len(video_frames)}, {fps}")
-            infer.set_fps(fps=fps)
-            infer.input_video_stream(video_frames)
-            infer.input_query_stream(conversation)
-            model_response_list = infer.inference()
-            res = {'question_id': question_id, 'model_response_list': model_response_list, 'video_duration': video_duration}
-            res['debug_data'] = round_numbers(infer.debug_data_list, 3)
-            f_out.write(json.dumps(res) + '\n')
-            if data_i % 5 == 0:
-                f_out.flush()
-        f_out.close()
-
-
-        pred_examples = [json.loads(line) for line in open(test_args.output_fname)]
-        gold_examples = json.load(open(gold_file))
-
-        results = youcook2_eval(test_args, pred_examples, gold_examples, gold_file, test_args.output_fname )
-        all_results["all_params"][threshold] = results
-        f1 = sum(results["F1_Score"]) / len(results["F1_Score"])
-
-
-        if f1 > all_results["best_result"]["best_score"]:
-            all_results["best_result"]["best_score"] = f1
-            all_results["best_result"]["best_params"] = threshold
-            all_results["best_result"]["all_scores"] = results
-
-        print(f"Results for YouCook2 with threshold {threshold}")
-        print(results)
-        with open(gs_output_file, 'w') as f:
-            json.dump(all_results, f, indent=4)
-    
-    all_args[args.test_dataset]["threshold"] = threshold
-    
-    with open(all_args["grid_search"]["save_path"], "w") as f:
-        json.dump(best_args_json, f)
 
 
         
 
 
-def grid_search(args, param_grid, uncertainty=False):
-    """
-    Performs a grid search over the weight parameters (alpha, beta, epsilon)
-    to combine informative_score, relevance_score, and uncertainty_score.
-
-    For each weight combination, compute a weighted sum for each debug entry,
-    then evaluate the predictions using hisum_evaluate_scores. The combination
-    with the highest validation score (here, Pearson correlation) is stored as the best.
-
-    Parameters:
-        predictions (list): List of prediction dictionaries loaded from JSON.
-        hdf (h5py.File): Opened HDF5 file object that contains ground truth data.
-        param_grid (dict): Dictionary with keys 'alpha', 'beta', 'epsilon' and values being
-                           iterables of candidate values.
-                           e.g., {"alpha": [0.0, 0.1, ..., 1.0], "beta": [...], "epsilon": [...]}
-
-    Returns:
-        dict: A dictionary with the best parameters and the corresponding evaluation score.
-              For example: {"alpha": 0.3, "beta": 0.5, "epsilon": 0.2, "pearson": 0.85}
-    """
+def grid_search(args, param_grid, save_path, uncertainty=True):
 
     best_params = {"alpha": None, "beta": None, "epsilon": None, "uncertainty_threshold": None}
     hdf = None
     ground_truths = None
     uncertainty_threshold = None
-
-    with open("paths.yaml", "r") as f:
-        dataset_args = yaml.safe_load(f)
     
 
-    with open(dataset_args["grid_search"]["save_path"], "r") as f:
+    with open(save_path, "r") as f:
         best_args_json = json.load(f)
 
 
-    dataset_output_dir = dataset_args[args.test_dataset]["output_dir"]
-    print(dataset_output_dir)
-    args.gold_file = dataset_args[args.test_dataset]["gold_file"]
-    args.pred_file = os.path.join(dataset_output_dir, dataset_args[args.test_dataset]["pred_file"]) 
     
     if args.test_dataset == "hisum":
         
         with open(args.pred_file, "r") as f:
             predictions = json.load(f)
         
-    elif args.test_dataset == "tvsum":
+    elif args.test_dataset == "tvsum" or args.test_dataset == "tvsum_degraded":
         
         with open(args.pred_file, "r") as f:
             predictions = json.load(f)
         
         ground_truths = get_annos(args.gold_file)
     
-    elif args.test_dataset == "qvh":
-        predictions = [json.loads(line) for line in open(args.pred_file)]
-        ground_truths = load_jsonl(args.gold_file)
     
     elif args.test_dataset == "charades":
         predictions = [json.loads(line) for line in open(args.pred_file)]
@@ -462,7 +295,7 @@ def grid_search(args, param_grid, uncertainty=False):
 
     best_args_json[args.test_dataset] = best_params
 
-    with open(dataset_args["grid_search"]["save_path"], "w") as f:
+    with open(save_path, "w") as f:
         json.dump(best_args_json, f)
         
     return best_params
@@ -471,11 +304,16 @@ def grid_search(args, param_grid, uncertainty=False):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--test_dataset", type=str, required=True, help="The type of dataset used")
-    parser.add_argument("--uncertainty", action="store_true")
-    args = parser.parse_args()
+    parser.add_argument("--test_dataset", type=str, required=False)
+    parser.add_argument("--gold_file", type=str, required=False)
+    parser.add_argument("--pred_file", type=str, required=False)
+    parser.add_argument("--output_fname", type=str, required=False)
+    # parser.add_argument("--output_dir", type=str, required=False)
 
-    non_eval_metrics = ["hisum", "tvsum", "qvh", "charades"]
+
+    args = parser.parse_args()
+    save_path = "outputs/grid_search_params.json"
+    non_eval_metrics = ["hisum", "tvsum", "tvsum_degraded", "charades"]
 
     if args.test_dataset in non_eval_metrics:
         param_grid = {
@@ -484,14 +322,17 @@ if __name__ == "__main__":
             "epsilon": np.linspace(-5, 5, 15), # Uncertainty
             # "alpha": np.linspace(1.47, 1.47, 1), # Importance
             # "beta": np.linspace(1.87, 1.87, 1), # Relevance
-            "uncertainty_threshold": np.linspace(0.04, 0.15, 10)
+            "uncertainty_threshold": np.linspace(0.04, 0.15, 10) # Threshold
         }
-        best_params = grid_search(args, param_grid, args.uncertainty)
+        best_params = grid_search(args, param_grid, save_path, True)
     elif args.test_dataset =="youcook2":
-        param_grid = {
-            "threshold": np.linspace(1, 3, 10)
-        }
-        best_params = grid_search_with_inference(args, param_grid)
+        raise ValueError("Deprecated")
+        # param_grid = {
+        #     "threshold": np.linspace(1, 3, 10)
+        # }
+        # best_params = grid_search_with_inference(args, param_grid)
     
     print("Best parameters found:")
     print(best_params)
+
+

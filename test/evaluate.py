@@ -15,7 +15,6 @@ from groq import Groq # for server evaluation
 
 from .tvsum.tvsum_utils import *
 from .hisum.hisum_eval import *
-from .qvh.eval import eval_submission, load_jsonl
 from .dvc.eval_dvc import eval_with_files       # for youcook2 evaluation
 
 class CorrectnessEvaluator:
@@ -386,66 +385,6 @@ if __name__ == '__main__':
                 f_out.flush()
         f_out.close()
 
-    elif args.func == 'qvh':
-        with open("outputs/grid_search_params.json", "r") as f:
-            best_params = json.load(f)
-        
-        args.alpha = best_params["qvh"]["alpha"]
-        args.beta = best_params["qvh"]["beta"]
-        args.epsilon = best_params["qvh"]["epsilon"]
-        args.uncertainty_threshold = best_params["qvh"]["uncertainty_threshold"]
-
-        pred_examples = [json.loads(line) for line in open(args.pred_file)]
-        gold_examples = load_jsonl(args.gold_file)
-        final_results = list()
-
-        if args.is_online_model:
-            for smooth_window_size in range(0, 15):
-                print("using smooth window size", smooth_window_size)
-
-                reformatted_pred_list = list()
-                for example in pred_examples:
-                    
-                    frame_interval = example['debug_data'][1]['time'] - example['debug_data'][0]['time']
-                    two_sec_frames = int(2 / frame_interval)
-                    video_times, pred_scores = list(), list()
-                    for e in example['debug_data']:
-                        video_times.append(e['time'])
-                        if 'relevance_score' in e:
-                            curr_pred_score = args.alpha * e["informative_score"] + args.beta * e['relevance_score']
-                            if e["uncertainty_score"] >= args.uncertainty_threshold:
-                                diff = e["uncertainty_score"] - args.uncertainty_threshold
-                                penalty = diff * args.epsilon
-                                curr_pred_score -= penalty
-                            pred_scores.append(curr_pred_score)
-
-                        else:
-                            pred_scores.append(0)
-                    pred_scores = smooth_pred_list(pred_scores, smooth_window_size)
-                    pred_saliency_scores = [sum(pred_scores[i: i + two_sec_frames]) for i in range(0, len(pred_scores), two_sec_frames)]
-                    reformatted_pred_list.append({'qid': example['question_id'], 'pred_saliency_scores': pred_saliency_scores})
-
-
-                results = eval_submission(reformatted_pred_list, gold_examples, match_number=False)
-                print(results)
-                final_results.append({'smooth_window_size': smooth_window_size, 'results': results})
-            if args.output_file:
-                json.dump(final_results, open(args.output_file, 'w'), indent=4)
-
-        else:
-            reformatted_pred_list = list()
-            for example in pred_examples:
-                # this is llava baseline, extract numbers from its results
-                video_length = example['video_duration']
-                sec_matches = re.findall(r"\d+\.?\d*", example['model_response'][0])
-                if not len(sec_matches) == 2: continue
-                start_sec, end_sec = float(sec_matches[0]), float(sec_matches[1])
-                if 'from' in example['model_response'][0].lower() and 'to' in example['model_response'][0].lower():     # this is a vtimellm format result
-                    start_sec, end_sec = start_sec / 100 * video_length, end_sec / 100 * video_length
-                pred_saliency_scores = [1 if start_sec < sec < end_sec else 0 for sec in range(0, int(video_length), 2)]
-                reformatted_pred_list.append({'qid': example['question_id'], 'pred_saliency_scores': pred_saliency_scores})
-            results = eval_submission(reformatted_pred_list, gold_examples, match_number=False)
-            print(results)
 
 
     elif args.func == 'grounding':
@@ -475,9 +414,6 @@ if __name__ == '__main__':
                     for e in pred_example['debug_data']:
                         video_times.append(e['time'])
                         if 'relevance_score' in e:
-                            # pred_scores.append(args.alpha * e['informative_score'] \
-                            #                    + args.beta * e['relevance_score'] \
-                            #                     + args.epsilon * e['uncertainty_score'])
                             curr_pred_score = args.alpha * e["informative_score"] + args.beta * e['relevance_score']
                             if e["uncertainty_score"] >= args.uncertainty_threshold:
                                 diff = e["uncertainty_score"] - args.uncertainty_threshold
@@ -560,9 +496,7 @@ if __name__ == '__main__':
                 vid_ground_truth = list(hdf[h5_video_identifier]["gtscore"])
                 if not prediction['debug_data'] or not vid_ground_truth:
                     continue
-                    
-                # print(len(vid_ground_truth), len(prediction["debug_data"]))
-                # print(vid_ground_truth, prediction["debug_data"])
+                
                 
                 categories = prediction['categories']
                 ground_truth_frame_scores = []
@@ -593,7 +527,6 @@ if __name__ == '__main__':
                 pred_dict[video_uuid] = pred_scores
                 gt_dict[video_uuid] = ground_truth_frame_scores
 
-            # print(predictions)
             results = hisum_evaluate_scores(gt_dict, pred_dict)
 
             # Get the first video_uuid
@@ -601,7 +534,6 @@ if __name__ == '__main__':
             true_scores = gt_dict[first_video_uuid]
             predicted_scores = pred_dict[first_video_uuid]
             
-            # print(predicted_scores)
 
             # Plot
             plt.figure(figsize=(10, 5))
@@ -620,17 +552,14 @@ if __name__ == '__main__':
         with open("outputs/grid_search_params.json", "r") as f:
             best_params = json.load(f)
         
-        args.alpha = best_params["tvsum"]["alpha"]
-        args.beta = best_params["tvsum"]["beta"]
-        args.epsilon = best_params["tvsum"]["epsilon"]
-        args.uncertainty_threshold = best_params["tvsum"]["uncertainty_threshold"]
+        args.alpha = best_params[args.func]["alpha"]
+        args.beta = best_params[args.func]["beta"]
+        args.epsilon = best_params[args.func]["epsilon"]
+        args.uncertainty_threshold = best_params[args.func]["uncertainty_threshold"]
 
         print(f"Best params - Alpha:{args.alpha}, Beta:{args.beta}, Epsilon:{args.epsilon}, thresh:{args.uncertainty_threshold}")
         with open(args.pred_file, "r") as f:
             predictions = json.load(f)
-        
-        
-        # args.uncertainty_penalty = 0
         
         
         ground_truths = get_annos(args.gold_file)
@@ -658,10 +587,7 @@ if __name__ == '__main__':
                     penalty = diff * args.epsilon
                     curr_pred_score -= penalty
                 pred_scores.append(curr_pred_score)
-
-                # pred_scores.append(e["informative_score"] + e['relevance_score'] * 10)
                 ground_truth_frame_scores.append(vid_ground_truth[true_frame])
-                # print(e['relevance_score'], vid_ground_truth[true_frame])
             
             pred_scores = np.array(pred_scores)
             # pred_scores = np.convolve(pred_scores, np.ones(5)/5, mode='same')

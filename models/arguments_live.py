@@ -32,7 +32,7 @@ class LiveTrainingArguments(TrainingArguments):
 
     first_n_frames_no_generate: int = 0 # We want to be mindful of first few arguments
     quantization: bool = False
-    push_to_hub: bool = True
+    push_to_hub: bool = False
     max_grad_norm: float = 1.0
 
 

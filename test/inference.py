@@ -35,7 +35,7 @@ class LiveInferForBenchmark:
     def __init__(self, args, peft_model_id=None, sink_cache=True) -> None:
         assert not (args.bf16 and args.fp16), "only one of --bf16 true and --fp16 true can be set"
         self.sink_cache = sink_cache
-        self.peft_model_id = "aiden200/aha" if not peft_model_id else peft_model_id
+        self.peft_model_id = "aha_weights" if not peft_model_id else peft_model_id
         self.torch_dtype = torch.bfloat16 if args.bf16 else torch.float16 #if args.fp16 else torch.float32
         self.model, self.tokenizer = build_model_and_tokenizer(is_training=False, set_vision_inside=True, torch_dtype=self.torch_dtype, **asdict(args))
         self.model.eval()
@@ -183,33 +183,10 @@ class LiveInferForBenchmark:
             self.model.get_input_embeddings()(self.last_ids).view(1, -1, self.hidden_size),
             frame_embeds.view(1, -1, self.hidden_size).to(self.last_ids.device),
         ], dim=1)
-        # print(self.past_key_values)
-        # print("SinkCache keys:")
-        # for k, v in self.past_key_values.items():
-        #     print(f"{k}: {v.shape}, device={v.device}")
+
 
         outputs = self.model(inputs_embeds=inputs_embeds, use_cache=True, past_key_values=self.past_key_values, output_attentions=False, return_dict=True)
         self.past_key_values = outputs.past_key_values
-
-        # print(self.past_key_values[0][0].shape[2])
-        # print("starting new kv cache")
-        # print(outputs.past_key_values.cos_sin_rerotation_cache)
-        # for k,v in zip(outputs.past_key_values.key_cache, outputs.past_key_values.value_cache):
-        #     print(k.shape, v.shape)
-        # for layer_cache in outputs.past_key_values:
-        #     print(type(layer_cache), len(layer_cache), layer_cache[0].shape)
-
-        # print(outputs)
-        # sink_indices = list(range(8))  # assuming first 8 tokens are sink tokens
-        # print(outputs.attentions.shape)
-        # attn = outputs.attentions[-1][0]  # shape: [seq_len, seq_len]
-        # current_token_attn = attn[-1]     # shape: [seq_len]
-        # sink_attn = current_token_attn[sink_indices]
-        # avg_attn = np.mean([layer_attn[0][-1, sink_indices].detach().cpu().numpy()
-        #                     for layer_attn in outputs.attentions], axis=0)
-        # self.sink_attention_over_time.append(sink_attn)
-
-        # self.past_key_values = self._update_sink_cache(outputs.past_key_values)
 
         self.frame_idx += 1
         self.num_frames_no_reply += 1
@@ -559,7 +536,7 @@ if __name__ == '__main__':
             if args.test_dataset == "tvsum":
                 video_frames, fps, video_duration, true_frames_list = load_video_for_testing(video_path, output_fps=args.frame_fps, return_true_frames=True, max_num_frames=max_num_frames)    
             else:
-                dropout_types = ["block_noise"] # ["quality", "block_noise", "color_banding", "blackout"]
+                dropout_types = ["color_banding"] # ["quality", "block_noise", "color_banding", "blackout"]
                 video_frames, fps, video_duration, true_frames_list =  load_video_for_testing_with_dropout(video_path, output_fps=args.frame_fps, return_true_frames=True, max_num_frames=max_num_frames, dropout_types=dropout_types) 
                 
             if video_frames == None:
@@ -711,12 +688,7 @@ if __name__ == '__main__':
         infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_file, parent_dir, frame_folder, ticks, fps)
 
     else:
-        with open("paths.yaml", "r") as f:
-            dataset_args = yaml.safe_load(f).get(args.test_dataset, {"alpha": 0.0, "beta": 1.5555, "epsilon": 1.0, "threshold": 2})
-        
-        if "threshold" in dataset_args:
-            print(f"Dataset: {args.test_dataset} is using grid search param: threshold {dataset_args['threshold']}")
-            args.stream_end_score_sum_threshold = dataset_args["threshold"]
+
 
         dataset = FastAndAccurateStreamingVideoQADataset(
             data_file=args.test_fname, video_base_folder=args.input_dir,

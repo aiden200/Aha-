@@ -1,19 +1,21 @@
-output_dir=outputs/mmduet
+output_dir=outputs/aha
+pretrained_dir=aha_weights/
 mkdir -vp  ${output_dir}/eval
 
-thres_sum=2
+thres_sum=5.789473684210526
 
 # --------------------
 # run inference
 # --------------------
 python -u -m test.inference \
+    --test_dataset youcook2 \
     --llm_pretrained lmms-lab/llava-onevision-qwen2-7b-ov --bf16 true \
-    --lora_pretrained ${output_dir} \
-    --input_dir datasets/youcook2/videos --frame_fps 0.5 --max_num_frames 200 \
+    --lora_pretrained ${pretrained_dir} \
+    --input_dir /data/youcook/YouCookII/raw_videos/ --frame_fps 0.5 --max_num_frames 200 \
     --test_fname datasets/youcook2/annotations/val-random_prompt.json \
-    --stream_end_score_sum_threshold ${thres_sum} --remove_assistant_turns true \
+    --stream_end_score_sum_threshold ${thres_sum} --remove_assistant_turns true  --score_heads "informative_score"\
     --output_fname ${output_dir}/eval/youcook2_val-thres_sum_${thres_sum}-rm_ass_turns-pred.json \
-    > ${output_dir}/eval/youcook2_val-thres_sum_${thres_sum}-rm_ass_turns-pred.log 2>&1 &
+    > ${output_dir}/eval/youcook2_val-thres_sum_${thres_sum}-rm_ass_turns-pred.log 
 wait
 
 # --stream_end_score_sum_threshold is the theshold of the sum of informative score, 
@@ -26,4 +28,6 @@ wait
 python -m test.evaluate --func dense_captioning \
     --pred_file ${output_dir}/eval/youcook2_val-thres_sum_${thres_sum}-rm_ass_turns-pred.json \
     --gold_file datasets/youcook2/annotations/val-random_prompt.json \
-    > ${output_dir}/eval/youcook2_val-thres_sum_${thres_sum}-rm_ass_turns-eval.log 2>&1 &
+    > ${output_dir}/eval/youcook2_val-thres_sum_${thres_sum}-rm_ass_turns-eval.log 
+
+

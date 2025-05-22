@@ -1,6 +1,5 @@
-output_dir=outputs/hisum_eval
-# pretrained_dir=outputs/mmduet
-pretrained_dir=aiden200/aha
+output_dir=outputs/hisum
+pretrained_dir=aha_weights/
 mkdir -vp  ${output_dir}/eval
 
 if [ -f "${output_dir}/eval/hisum_test-random_prompt-pred.log" ]; then
@@ -11,23 +10,30 @@ fi
 # # --------------------
 # # run inference
 # # --------------------
-# python -u -m test.inference --grounding_mode true \
-#     --llm_pretrained lmms-lab/llava-onevision-qwen2-7b-ov --bf16 true \
-#     --test_dataset hisum \
-#     --skip_eval false \
-#     --video_metadata_file datasets/hisum/videos_metadata.json \
-#     --caption_metadata_file datasets/hisum/annotations/mr_hisum_metadata.csv \
-#     --hisum_h5_file /data/yt8m/annotations/mr_hisum.h5 \
-#     --anno_file datasets/hisum/annotations/split.json \
-#     --lora_pretrained ${pretrained_dir}  \
-#     --stream_end_prob_threshold 1 \
-#     --input_dir /data/yt8m/videos/ --frame_fps 1 --max_num_frames 400 \
-#     --test_fname datasets/hisum/annotations/test-random_prompt.json \
-#     --output_fname ${output_dir}/eval/hisum_test-random_prompt-pred.json \
-#     > ${output_dir}/eval/hisum_test-random_prompt-pred.log 
-# wait
+python -u -m test.inference --grounding_mode true \
+    --llm_pretrained lmms-lab/llava-onevision-qwen2-7b-ov --bf16 true \
+    --test_dataset hisum \
+    --skip_eval false \
+    --video_metadata_file datasets/hisum/videos_metadata.json \
+    --caption_metadata_file datasets/hisum/annotations/mr_hisum_metadata.csv \
+    --hisum_h5_file /data/yt8m/annotations/mr_hisum.h5 \
+    --anno_file datasets/hisum/annotations/split.json \
+    --lora_pretrained ${pretrained_dir}  \
+    --no_query false \
+    --stream_end_prob_threshold 1 \
+    --input_dir /data/yt8m/videos/ --frame_fps 1 --max_num_frames 400 \
+    --test_fname datasets/hisum/annotations/test-random_prompt.json \
+    --output_fname ${output_dir}/eval/hisum_test-random_prompt-pred.json \
+    > ${output_dir}/eval/hisum_test-random_prompt-pred.log 
+wait
 
-    # --caption_metadata_file datasets/hisum/ydata-hisum50-v1_1/data/ydata-hisum50-info.tsv \
+# --------------------
+# grid search
+# --------------------
+python -u -m test.grid_search --test_dataset hisum \
+    --pred_file ${output_dir}/eval/hisum_test-random_prompt-pred.json \
+    --gold_file /data/yt8m/annotations/mr_hisum.h5 
+wait
 
 # --------------------
 # evaluate
@@ -36,5 +42,4 @@ python -u -m test.evaluate --func hisum \
     --pred_file ${output_dir}/eval/hisum_test-random_prompt-pred.json \
     --gold_file /data/yt8m/annotations/mr_hisum.h5  \
     --output_file ${output_dir}/eval/hisum_test-random_prompt-eval.json \
-    --alpha 0.0 --beta 2.0 --epsilon 0.2 \
     > ${output_dir}/eval/hisum_test-random_prompt-eval.log 2>&1 &

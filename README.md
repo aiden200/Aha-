@@ -5,10 +5,8 @@
     <p></p>
 </div>
 
-[![HuggingFace](https://img.shields.io/badge/HuggingFace-Model-yellow)](https://huggingface.co/aiden200/aha)
-[![Annotations](https://img.shields.io/badge/HuggingFace-Annotations-yellow)](https://huggingface.co/datasets/aiden200/aha-annotationsv1)
+
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
-![Model](https://img.shields.io/badge/model-Qwen--7B-blueviolet)
 ![PyTorch](https://img.shields.io/badge/PyTorch-%3E%3D2.5.0-EE4C2C?style=flat-square&logo=pytorch)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 
@@ -29,8 +27,6 @@
 
 # Introduction
 
-
-<!-- Aha! is a video-language model that mimics human intuition by recognizing when important information has been seen. -->
 
 Unlike traditional models that analyze every frame or respond at fixed intervals, Aha! dynamically decides when to pause, reason, and act, capturing the essence of meaningful moments.
 
@@ -53,9 +49,7 @@ This approach enables more efficient video understanding, making Aha! applicable
 # Installation
 1. Create conda environment and use pip to install some packages
 ```shell
-git clone --recurse-submodules https://github.com/aiden200/Aha-.git
 cd aha
-
 conda create -n aha python=3.10
 conda activate aha
 pip install --upgrade pip
@@ -78,7 +72,7 @@ cd ..
 MAX_JOBS=4 pip install flash-attn --no-build-isolation --no-cache-dir 
 ```
 
-5. Optional: you can download the weights of the model from [Huggingface](https://huggingface.co/aiden200/aha), or you can let the script automatically download the weights every run.
+5. Optional: you can download the weights of the model from [our google drive](https://drive.google.com/file/d/1ivpu0W23dis3UwUGemNWCnPMol0ubHfr/view?usp=sharing)
 
 
 <details>
@@ -119,49 +113,21 @@ This model trained 1 epoch off of 6xA6000 GPUs, over 24 hours. You need at least
 Inference requires at least 24GB VRAM. Tested on a single RTX 4090 GPU. 
 
 
-# Inference
-I've included a video link of how to set up and run our model: [link]()
-
 ## Download pretrained Model
-- Download checkpoints from HuggingFace: (https://huggingface.co/aiden200/Aha-) and put the files under folder `./outputs/aha`
-```bash
-mkdir outputs
-cd outputs
-git clone https://huggingface.co/aiden200/Aha- aha
-cd ..
-```
-
-## Input your own video
-You can either input the entire video (a lot faster because batching) or you can input a frame one by one. 
-
-Entire video:
-```python
-
-```
-
-Frame by frame:
-```python
-
-```
-
-After you finish running the code, you can generate a highlight reel using:
-```python
-
-```
-
+- Download checkpoint weights from our [google drive](https://drive.google.com/file/d/1ivpu0W23dis3UwUGemNWCnPMol0ubHfr/view?usp=sharing) 
+- Unzip the weights into `aha_weights`
+  ```bash
+  unzip aha_weights.zip -d aha_weights
+  ```
 
 
 
 # Preparing the metadata
-Download the datasets folder which contains the metadata for our dataset. You can download them from our [huggingface page](https://huggingface.co/datasets/aiden200/aha-annotationsv1/tree/main). 
-
-Use the following commands:
-```
-git lfs install
-git clone https://huggingface.co/datasets/aiden200/aha-annotationsv1
-mv aha-annotationsv1/datasets .
-rm -rf aha-annotationsv1
-```
+- Download the metadata for our dataset. You can download them from our [google drive](https://drive.google.com/file/d/1XaZyaPC2Fi7n9YhQuUzYh62npfEcDGhF/view?usp=sharing). 
+- Unzip the weights into `datasets`
+  ```bash
+  unzip datasets.zip -d datasets
+  ```
 
 This should give you a structure like this.
 
@@ -221,6 +187,7 @@ This should give you a structure like this.
 - Tvsum data preparation:
   - Follow the instructions from the official [tvsum](https://github.com/yalesong/tvsum?tab=readme-ov-file) repository to download the videos then move it to the datasets folder as `datasets/tvsum`
   - Run `scripts/inference/tvsum.sh`.
+  - To evaluate tvsum with the quality dropout, run `scripts/inference/tvsum_degraded.sh`
 
 - Mr.Hisum data preparation
   - Prepare the `mr_hisum.h5` file following the instructions of the [official repository](https://github.com/MRHiSum/MR.HiSum). 
@@ -275,51 +242,20 @@ Log into wandb in order to monitor your progress
 wandb login [YOUR_API_KEY]
 ```
 
-Log into huggingface in order to save your new model weights 
-```bash
-huggingface-cli login
-```
-
-and update `models.arguments_live`. Set `push_to_hub` as `False` if you do not wish to upload your new weights.
-
-```python
-push_to_hub=True,
-hub_model_id=[REPO NAME],
-```
-
-
 Start the training process
 ```bash
 bash ./scripts/train.sh
 ```
-
-## Linear Grid search
-
-If you wish to test out your new model, you will need to find out which $\alpha$, $\beta$, and $\epsilon$ works best. Run a linear grid search using (uncomment the datasets you wish to tune in the file - advised to tune one by one):
-
-```bash
-bash ./scripts/inference/grid_search.sh
-```
-
-This will automatically update the hyperparameters in `outputs/grid_search_params.json`. Just run the evaluation scripts and it will give you the best result!
-
 
 ## Distributed Training
 This model is very big, trained on 6xA6000 GPUs, and you will probably need to utilize distributed training. [I've included instructions on how to train on the cloud, using Paperspace.](instructions/distributed_instructions.md)
 
 # Fine-tuning
 
-If you wish to further tune the trained weights, download the pretrained model from [HuggingFace](https://huggingface.co/aiden200/aha) and put the files under folder `./outputs/aha`
-
-```bash
-mkdir outputs
-cd outputs
-git clone https://huggingface.co/aiden200/aha aha
-cd ..
-```
+If you wish to further tune the trained weights, download the pretrained model from our [google drive](https://drive.google.com/file/d/1ivpu0W23dis3UwUGemNWCnPMol0ubHfr/view?usp=sharing) and put the files under folder `aha_weights`
 
 In the `scripts/train.sh` file, add this line:
-```--lora_pretrained outputs/aha  \```
+```--lora_pretrained aha_weights  \```
 
 
 # Usage Guidelines
@@ -329,16 +265,7 @@ This model should not be deployed in contexts that may infringe on personal priv
 
 
 # Acknowledgements
-This work was conducted as part of the author's AEOP Fellowship, with compute resources and mentorship provided by the Army Research Laboratory, West Coast (ARL-W).
-
-This project builds on:
-- [VideoLLM-online](https://github.com/showlab/VideoLLM-online)
-- [MMDuet](https://github.com/yellow-binary-tree/MMDuet)
-- [LLaVA-NeXT](https://github.com/LLaVA-VL/LLaVA-NeXT)
-- [Mr.HiSum](https://github.com/MRHiSum/MR.HiSum) 
-- [ARL SCOUT](https://github.com/USArmyResearchLab/ARL-SCOUT)
-
-We thank the original authors for their contributions.
+ANONYMOUS
 
 
 # License
@@ -349,13 +276,5 @@ This project is licensed under the [Apache License 2.0](LICENSE).
 
 # Citation
 If you find this work useful in your research, please consider citing:
-```bibtex
-@misc{chang2025aha,
-      title={Aha! – Predicting What Matters Next: Online Highlight Detection Without Looking Ahead},
-      author={Aiden Chang and Celso De Melo and Stephanie Lukin},
-      year={2025},
-      eprint={},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2404.xxxxx}
-}
+
+ANONYMOUS
