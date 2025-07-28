@@ -1,5 +1,5 @@
 
-output_dir=outputs/tvsum
+output_dir=outputs/tvsum_dynamic_sink
 pretrained_dir=outputs/aha
 mkdir -vp  ${output_dir}/eval
 
@@ -28,7 +28,7 @@ wait
 
 # --------------------
 # grid search
-# --------------------
+# # --------------------
 python -u -m test.grid_search --test_dataset tvsum \
     --pred_file ${output_dir}/eval/tvsum_test-random_prompt-pred.json \
     --gold_file datasets/tvsum/ydata-tvsum50-v1_1/data/ydata-tvsum50-anno.tsv

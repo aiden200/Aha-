@@ -12,6 +12,7 @@ import torch
 import transformers
 import h5py
 import yaml
+import random
 import re
 
 
@@ -252,11 +253,19 @@ def grid_search(args, param_grid, save_path, uncertainty=True):
             predictions = json.load(f)
         
         ground_truths = get_annos(args.gold_file)
+        indices = list(range(len(predictions)))
+        random.shuffle(indices)
+        predictions = [predictions[i] for i in indices]
+        import math
+        train, test = predictions[:math.floor(len(predictions)*.8)], predictions[:-int(len(predictions)*.2)]
+
+        predictions = train
     
     
     elif args.test_dataset == "charades":
         predictions = [json.loads(line) for line in open(args.pred_file)]
         ground_truths = json.load(open(args.gold_file))
+
         if 'answer' in ground_truths[0] and 'saliency_scores' in ground_truths[0]['answer']:
             # this is a qvh dataset, convert it to charades format
             ground_truths = [qvh_to_charades_format(e) for e in ground_truths]
@@ -268,7 +277,7 @@ def grid_search(args, param_grid, save_path, uncertainty=True):
         len(param_grid["epsilon"])
     )
     
-    NUM_WORKERS = 100
+    NUM_WORKERS = 150
     if uncertainty:
         param_combos = list(product(param_grid["alpha"], param_grid["beta"], param_grid["epsilon"], param_grid["uncertainty_threshold"]))
         args_list = [(alpha, beta, epsilon, uncertainty_threshold, predictions, args.test_dataset, args.gold_file, ground_truths) for alpha, beta, epsilon, uncertainty_threshold in param_combos]
@@ -289,9 +298,15 @@ def grid_search(args, param_grid, save_path, uncertainty=True):
             best_score = score
             best_params = params
 
-    # best_params["best_score"] = best_score
+    
+    test_top5map = tvsum_score_calculation(test, ground_truths, best_params["alpha"]
+                            ,best_params["beta"], best_params["epsilon"], best_params["uncertainty_threshold"])
 
-    print(f"Best score: {best_score}")
+    print(f"TEST TOP5 MAP: {test_top5map}")
+
+    best_params["best_score"] = best_score
+
+    # print(f"Best score: {best_score}")
 
     best_args_json[args.test_dataset] = best_params
 
@@ -317,8 +332,8 @@ if __name__ == "__main__":
 
     if args.test_dataset in non_eval_metrics:
         param_grid = {
-            "alpha": np.linspace(0.0, 2.0, 10), # Importance
-            "beta": np.linspace(-1.0, 2.0, 15), # Relevance
+            "alpha": np.linspace(0.0, 1.5, 10), # Importance
+            "beta": np.linspace(0.0, 1.5, 10), # Relevance
             "epsilon": np.linspace(-5, 5, 15), # Uncertainty
             # "alpha": np.linspace(1.47, 1.47, 1), # Importance
             # "beta": np.linspace(1.87, 1.87, 1), # Relevance

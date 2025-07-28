@@ -61,6 +61,12 @@ class SinkCache(Cache):
             return 0
         return self.key_cache[layer_idx].shape[-2]
 
+
+
+    def get_max_length(self) -> Optional[int]:
+        """DEPRICATED"""
+        return self.window_length
+
     def get_max_cache_shape(self) -> Optional[int]:
         """Returns the maximum sequence length of the cache object, in case of SinkCache it is the window length."""
         return self.window_length

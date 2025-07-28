@@ -1,5 +1,5 @@
 
-output_dir=outputs/tvsum
+output_dir=outputs/tvsum_static
 pretrained_dir=outputs/aha
 mkdir -vp  ${output_dir}/eval
 

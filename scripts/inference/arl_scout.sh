@@ -14,7 +14,7 @@ python -u -m test.inference \
     --lora_pretrained ${pretrained_dir}  \
     --stream_end_score_sum_threshold ${thres_sum} --remove_assistant_turns true \
     --score_heads "informative_score" \
-    --input_dir test/arl_scout/p1.02_main1/all-images --frame_fps 1 \
+    --input_dir test/arl_scout/scout_full_vid.mp4 --frame_fps 1 \
     --output_fname ${output_dir}/eval/arl_scout_test-random_prompt-pred.json
 # wait
 
