@@ -11,6 +11,7 @@ import torch
 import transformers
 from torchvision.io import read_video
 from peft import PeftModel
+from thop import profile
 import ast
 import h5py
 
@@ -28,23 +29,31 @@ from models import build_model_and_tokenizer, fast_greedy_generate, parse_args
 from .datasets import FastAndAccurateStreamingVideoQADataset
 from test.live_video.infer_live_video import infer_on_live_video, ARL_TICKS, HUBBLE_SPACE_TELESCOPE_TICKS, infer_and_generate_video
 from test.sink_cache import SinkCache
+from test.sliding_window_cache import SlidingWindowCache
+from test.tvsum.tvsum_tasks import TVSUM_AMBIGUOUS_TITLES, TVSUM_UNRELATED_TITLES
 from test.live_video.quality_dropout import *
-
+from utils.video_loader import check_metadata
+from test.static_cache import TrulyStaticCache
 
 class LiveInferForBenchmark:
-    def __init__(self, args, peft_model_id=None, sink_cache=True) -> None:
+    def __init__(self, args, peft_model_id=None, sink_cache=False, alt_cache="default_sink") -> None:
         assert not (args.bf16 and args.fp16), "only one of --bf16 true and --fp16 true can be set"
         self.sink_cache = sink_cache
+        self.alt_cache = alt_cache
         self.peft_model_id = "aha_weights" if not peft_model_id else peft_model_id
         self.torch_dtype = torch.bfloat16 if args.bf16 else torch.float16 #if args.fp16 else torch.float32
         self.model, self.tokenizer = build_model_and_tokenizer(is_training=False, set_vision_inside=True, torch_dtype=self.torch_dtype, **asdict(args))
         self.model.eval()
         self.model.currently_training = False
+        
+
         if 'llava' in args.llm_pretrained:
             self.image_processor = self.model.get_vision_tower().image_processor
         else:
             self.image_processor = None
         # self.model.to('cuda')
+
+
 
         # visual
         self.hidden_size = self.model.config.hidden_size
@@ -57,6 +66,7 @@ class LiveInferForBenchmark:
         self.uncertainty_wait_threshold = args.uncertainty_wait_threshold
         self.max_wait_frames = args.max_wait_frames
         self.uncertainty_lock = 0
+        self.first_query_processed = False 
 
         # generation
         self.system_prompt = args.system_prompt
@@ -84,7 +94,7 @@ class LiveInferForBenchmark:
         self._added_stream_generation_ids = self.tokenizer.apply_chat_template([{}], add_stream_generation_prompt=True, return_tensors='pt').to('cuda')
         self.repetition_penalty = args.repetition_penalty
         self.init_vision_time = False
-        self._init_sink_cache()
+        self._init_cache()
         self.sink_attention_over_time = []
         self.reset()
         self.all_windows = []
@@ -108,7 +118,8 @@ class LiveInferForBenchmark:
         self.video_tensor = None
         self.last_ids = torch.tensor([[]], device='cuda', dtype=torch.long)
         self.past_key_values = None
-        self._init_sink_cache()
+        self._init_cache()
+        self.first_query_processed = False 
         self.debug_data_list = list()
         self.generated_token_ids = list()
         self.init_vision_time = False
@@ -119,9 +130,27 @@ class LiveInferForBenchmark:
         self.sink_attention_over_time = []
     
 
-    def _init_sink_cache(self, window_length=2048, num_sink_tokens=32):
+    def _init_cache(self, window_length=2048, num_sink_tokens=32, instruction_ids= None):
+
+        if instruction_ids is None:
+            instruction_ids = self._start_ids
+            
+        num_instruction_tokens = instruction_ids.shape[1]
+        
+        local_window_length = window_length + num_sink_tokens - num_instruction_tokens
+
+
         if self.sink_cache:
+            self.past_key_values = SinkCache(
+                window_length=local_window_length, 
+                num_sink_tokens=num_instruction_tokens
+            )
+        elif self.alt_cache and self.alt_cache == "default_sink":
             self.past_key_values = SinkCache(window_length=window_length, num_sink_tokens=num_sink_tokens)
+        elif self.alt_cache and self.alt_cache == "sliding_window":
+            self.past_key_values = SlidingWindowCache(window_length = window_length)
+        elif self.alt_cache and self.alt_cache == "static":
+            self.past_key_values = TrulyStaticCache(window_size = window_length)
         else:
             self.past_key_values = None
 
@@ -185,7 +214,7 @@ class LiveInferForBenchmark:
         ], dim=1)
 
 
-        outputs = self.model(inputs_embeds=inputs_embeds, use_cache=True, past_key_values=self.past_key_values, output_attentions=False, return_dict=True)
+        outputs = self.model(inputs_embeds=inputs_embeds, use_cache=True, past_key_values=self.past_key_values, cache_implementation="static", max_new_tokens=2048, output_attentions=False, return_dict=True)
         self.past_key_values = outputs.past_key_values
 
         self.frame_idx += 1
@@ -200,10 +229,34 @@ class LiveInferForBenchmark:
         return {"informative_score": informative_score, "relevance_score": relevance_score}, uncertainty_score
 
     def _encode_query(self):
+        # query_time, query = self.query_queue.popleft()
+        # self.last_ids = self.tokenizer.apply_chat_template([{'role': 'user', 'content': query}], add_stream_query_prompt=self.last_role == 'stream', add_stream_prompt=True, return_tensors='pt').to('cuda')
+        # inputs_embeds = self.model.get_input_embeddings()(self.last_ids)
+        # outputs = self.model(inputs_embeds=inputs_embeds, past_key_values=self.past_key_values, use_cache=True, return_dict=True)
+        # self.past_key_values = outputs.past_key_values
+        # self.last_ids = outputs.logits[:, -1:].argmax(dim=-1)
+        # self.last_role = 'user'
+
         query_time, query = self.query_queue.popleft()
-        self.last_ids = self.tokenizer.apply_chat_template([{'role': 'user', 'content': query}], add_stream_query_prompt=self.last_role == 'stream', add_stream_prompt=True, return_tensors='pt').to('cuda')
+    
+        # Tokenize the current user query
+        query_ids = self.tokenizer.apply_chat_template(
+            [{'role': 'user', 'content': query}], 
+            add_stream_query_prompt=self.last_role == 'stream', 
+            add_stream_prompt=True, return_tensors='pt'
+        ).to('cuda')
+
+        # If this is the first user query, re-initialize the cache with it as the sink.
+        # if self.sink_cache and not self.first_query_processed:
+        #     print("First user query received. Re-initializing cache to use it as the semantic sink.")
+        #     self._init_cache(instruction_ids=query_ids)
+        #     self.first_query_processed = True
+
+
+        # For subsequent queries, process normally
+        self.last_ids = query_ids
         inputs_embeds = self.model.get_input_embeddings()(self.last_ids)
-        outputs = self.model(inputs_embeds=inputs_embeds, past_key_values=self.past_key_values, use_cache=True, return_dict=True)
+        outputs = self.model(inputs_embeds=inputs_embeds, past_key_values=self.past_key_values, cache_implementation="static", max_new_tokens=2048, use_cache=True, return_dict=True)
         self.past_key_values = outputs.past_key_values
         self.last_ids = outputs.logits[:, -1:].argmax(dim=-1)
         self.last_role = 'user'
@@ -363,9 +416,75 @@ def load_individual_frames_for_testing(frame_folder, start = None, end = None, o
     
     return torch.tensor(np.stack(frame_list)), output_fps, video_duration
 
+import threading
+import time
+import os
+import psutil
+from pynvml import *
 
+class GpuMonitor(threading.Thread):
+    def __init__(self, sample_interval_seconds=0.5):
+        super().__init__()
+        self.sample_interval = sample_interval_seconds
+        self._stop_event = threading.Event()
+        
+        # Metrics to track
+        self.peak_vram_bytes = 0
+        self.peak_gpu_util = 0
+        self.peak_mem_util = 0
+        self.peak_temp_c = 0
+        self.power_readings_watts = []
 
+    def run(self):
+        """The main loop for the monitoring thread."""
+        nvmlInit()
+        device_count = nvmlDeviceGetCount()
+        handles = [nvmlDeviceGetHandleByIndex(i) for i in range(device_count)]
 
+        while not self._stop_event.is_set():
+            current_total_vram = 0
+            
+            for i in range(device_count):
+                handle = handles[i]
+                
+                # VRAM Usage
+                mem_info = nvmlDeviceGetMemoryInfo(handle)
+                current_total_vram += mem_info.used
+                
+                # Utilization Rates
+                util = nvmlDeviceGetUtilizationRates(handle)
+                if util.gpu > self.peak_gpu_util:
+                    self.peak_gpu_util = util.gpu
+                if util.memory > self.peak_mem_util:
+                    self.peak_mem_util = util.memory
+
+                # Power Usage
+                power_mw = nvmlDeviceGetPowerUsage(handle)
+                self.power_readings_watts.append(power_mw / 1000.0)
+
+                # Temperature
+                temp_c = nvmlDeviceGetTemperature(handle, NVML_TEMPERATURE_GPU)
+                if temp_c > self.peak_temp_c:
+                    self.peak_temp_c = temp_c
+
+            # Update peak VRAM across all GPUs
+            if current_total_vram > self.peak_vram_bytes:
+                self.peak_vram_bytes = current_total_vram
+            
+            time.sleep(self.sample_interval)
+            
+        nvmlShutdown()
+
+    def stop(self):
+        self._stop_event.set()
+
+    def get_peak_vram_gb(self):
+        return self.peak_vram_bytes / (1024**3)
+
+    def get_average_power_watts(self):
+        if not self.power_readings_watts:
+            return 0
+        return sum(self.power_readings_watts) / len(self.power_readings_watts)
 
 
 
@@ -398,6 +517,7 @@ def load_video_for_testing(
     num_frames_total = math.ceil(video_duration * output_fps)
     frame_sec = [i / output_fps for i in range(num_frames_total)]
     
+
     frame_list, cur_time, frame_index = [], 0, 0
     true_frame_index = 0
     true_frame_index_list = []
@@ -463,6 +583,7 @@ def load_video_for_testing(
 
 
 
+from pynvml import *
 
 
 
@@ -482,6 +603,7 @@ if __name__ == '__main__':
         "Can you point out the video segments that cover '%s'?",
         "What are the key timestamps in the video for the topic '%s'?"
     ]
+
 
     system_prompt="A multimodal AI assistant is helping users with some activities. \
         Below is their conversation, interleaved with the list of video frames received by the assistant."
@@ -508,6 +630,7 @@ if __name__ == '__main__':
     
     
     if args.test_dataset == "tvsum" or args.test_dataset == "tvsum_degraded":
+        check_metadata(args.video_metadata_file, args.input_dir)
         with open(args.video_metadata_file, 'r') as f:
             data = json.load(f)
         
@@ -525,13 +648,26 @@ if __name__ == '__main__':
         results = []
         infer = LiveInferForBenchmark(args)
 
-        
+        ambiguous_prompt = True
+        unrelated_prompt = False
+
+
+        memory_usage = []
+        duration = []
 
         for video_name_with_extension in tqdm(data):
             video_uuid = video_name_with_extension[:-4]
             video_path = os.path.join(args.input_dir, video_name_with_extension)
             query = random.choice(query_templates) % captions[video_uuid]["query"]
 
+            if ambiguous_prompt:
+                query = random.choice(query_templates) % TVSUM_AMBIGUOUS_TITLES[video_uuid]["ambiguous_title"]
+            elif unrelated_prompt:
+                query = random.choice(query_templates) % TVSUM_UNRELATED_TITLES[video_uuid]["unrelated_title"]
+
+            # nvmlInit()
+            # handle = nvmlDeviceGetHandleByIndex(0) # Index 0 for the first GPU
+            # handle2 = nvmlDeviceGetHandleByIndex(1) # Index 1 for the second GPU
             max_num_frames = None
             if args.test_dataset == "tvsum":
                 video_frames, fps, video_duration, true_frames_list = load_video_for_testing(video_path, output_fps=args.frame_fps, return_true_frames=True, max_num_frames=max_num_frames)    
@@ -556,12 +692,18 @@ if __name__ == '__main__':
             infer.input_video_stream(video_frames)
             infer.input_query_stream(conversation)
             model_response_list = infer.inference()
+
+
             res = {'video_uuid': video_uuid, 'model_response_list': model_response_list, 'video_duration': video_duration, 'true_frames_list': true_frames_list}
             
             res['debug_data'] = round_numbers(infer.debug_data_list, 3)
             # print(res['debug_data'])
             results.append(res)
         
+        # print(f"Average VRAM Usage: {sum(memory_usage)/ len(memory_usage)}")
+        # print(f"Average Duration: {sum(duration) / len(duration)}")
+
+
         # print(f"MAX: {max(infer.all_windows)}")
         
         f_out = open(args.output_fname, 'w')
@@ -570,7 +712,7 @@ if __name__ == '__main__':
 
 
     elif args.test_dataset == "hisum":
-
+        check_metadata(args.video_metadata_file, args.input_dir)
         with open(args.video_metadata_file, 'r') as f:
             data = json.load(f)
         
@@ -652,6 +794,11 @@ if __name__ == '__main__':
         f_out.flush()
     
     elif args.test_dataset == "arl_scout" or args.test_dataset == "hubble_space" or args.test_dataset == "jkim_landing":
+        import psutil
+
+        monitor = GpuMonitor(sample_interval_seconds=0.2)
+        monitor.start() 
+        
         frame_folder = args.input_dir
         output_file = args.output_fname
         parent_dir = os.path.dirname(output_file)
@@ -660,8 +807,9 @@ if __name__ == '__main__':
         end = None
         video_frames, fps, video_duration = None, None, None
         if args.test_dataset == "arl_scout":
-            if not skip:
-                video_frames, fps, video_duration = load_individual_frames_for_testing(frame_folder, start=start, end=end)
+            # if not skip:
+                # video_frames, fps, video_duration = load_individual_frames_for_testing(frame_folder, start=start, end=end)
+            video_frames, fps, video_duration = load_video_for_testing(frame_folder, output_fps=args.frame_fps, return_true_frames=False, max_num_frames=None)    
             ticks = ARL_TICKS
             caption = "what objects are in this room?"
 
@@ -686,6 +834,25 @@ if __name__ == '__main__':
             infer = None
         query = random.choice(query_templates) % caption
         infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_file, parent_dir, frame_folder, ticks, fps)
+        monitor.stop()
+        monitor.join() # Wait for the thread to finish cleanly
+
+
+        process = psutil.Process(os.getpid())
+        monitor.stop()
+        monitor.join()
+
+        # Get final RAM usage
+        process = psutil.Process(os.getpid())
+        final_ram_gb = process.memory_info().rss / (1024**3)
+
+        print("\n--- 📈 Benchmark Results ---")
+        print(f"Peak VRAM Usage: {monitor.get_peak_vram_gb():.2f} GB")
+        print(f"Peak GPU Utilization: {monitor.peak_gpu_util}%")
+        print(f"Peak Memory Ctl. Utilization: {monitor.peak_mem_util}%")
+        print(f"Average Power Draw: {monitor.get_average_power_watts():.2f} W")
+        print(f"Peak Temperature: {monitor.peak_temp_c}°C")
+        print(f"Final System RAM Usage: {final_ram_gb:.2f} GB")
 
     else:
 

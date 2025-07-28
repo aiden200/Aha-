@@ -7,6 +7,7 @@ from PIL import Image
 import torch
 from scipy.signal import find_peaks, savgol_filter
 from test.arl_scout.prepare_data import generate_plot
+from torchvision.transforms.functional import to_pil_image
 from tqdm import tqdm
 
 
@@ -150,7 +151,7 @@ def infer_and_generate_video(infer, query, skip, video_frames, system_prompt, ou
         infer.input_video_stream(video_frames)
         infer.input_query_stream(conversation)
         model_response_list = infer.inference(verbose=True, total=len(video_frames))
-        
+        return
 
         results = round_numbers(infer.debug_data_list, 3)
         with open(output_file, "w") as f:
@@ -252,7 +253,7 @@ def infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_
         infer.input_query_stream(conversation)
         model_response_list = infer.inference(verbose=True, total=len(video_frames))
         
-
+        return
         results = round_numbers(infer.debug_data_list, 3)
         with open(output_file, "w") as f:
             json.dump(results, f)
@@ -268,10 +269,11 @@ def infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_
     
 
     model_response_formated = {} 
-    for response in model_response_list:
-        if response["role"] == "assistant":
-            model_response_formated[response["time"]] = response["content"] 
-        
+    if model_response_list:
+        for response in model_response_list:
+            if response["role"] == "assistant":
+                model_response_formated[response["time"]] = response["content"] 
+            
 
     
     times = [d["time"] for d in results]
@@ -282,8 +284,8 @@ def infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_
 
     # Create the plot
     
-    fig, ax = plt.subplots(figsize=(14, 7))
-    ax.plot(times, informative_scores, label="Informative Score", alpha=0.2)
+    fig, ax = plt.subplots(figsize=(48, 14))
+    ax.plot(times, informative_scores, label="Informative Score", color="BLUE", )#alpha=0.2)
     ax.plot(times, relevance_scores, label="Relevance Score", color="BLACK")
     ax.plot(times, uncertainty_scores, label="Uncertainty Score", alpha=1.0)
 
@@ -301,12 +303,23 @@ def infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_
         ax.text(mid, 0, label, rotation=90, va='bottom', ha='center', fontsize=25, color='black', clip_on=True)
     
     automatic_tics = find_ticks(np.array(relevance_scores))
+    info_automatic_tics = find_ticks(np.array(informative_scores))
+    
+    
     for t in automatic_tics:
-        real_time = t + 60*14 + 38
-        min = int(real_time // 60)
-        sec = int(real_time % 60)
+        # real_time = t + 60*14 + 38
+        min = int(t // 60)
+        sec = int(t % 60)
         print(f"{min}:{sec}")
     
+
+    for t in info_automatic_tics:
+        # real_time = t + 60*14 + 38
+        min = int(t // 60)
+        sec = int(t % 60)
+        print(f"{min}:{sec}")
+    
+
 
     if 0 not in automatic_tics or 0.0 not in automatic_tics:
         automatic_tics = [0] + automatic_tics
@@ -317,6 +330,12 @@ def infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_
         color = "black"
         alpha = 1.0
         ax.axvspan(idx, idx+1, ymin=0, ymax=1, color=color, alpha=alpha)
+    
+    for idx in info_automatic_tics:
+        
+        color = "blue"
+        alpha = 1.0
+        ax.axvspan(idx, idx+1, ymin=0, ymax=1, color=color, alpha=alpha)
 
     ax.set_xlabel("Time")
     ax.set_ylabel("Score")
@@ -325,8 +344,8 @@ def infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_
     ax.grid(True)
 
     plt.tight_layout()
-    plt.savefig(os.path.join(parent_dir, "visualization.png"))
-    plt.show()
+    plt.savefig(os.path.join(parent_dir, "visualization.png"), dpi = 300)
+    # plt.show()
 
     
     # plt.figure(figsize=(14, 7))
@@ -347,8 +366,11 @@ def infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_
     
     for idx in tqdm(range(len(results))):
         # Load frame
-        frame_path = os.path.join(frame_folder, f"frame{idx:03d}.jpg")
-        frame_img = Image.open(frame_path).convert("RGB")
+        # frame_path = os.path.join(frame_folder, f"frame{idx:03d}.jpg")
+        # frame_img = Image.open(frame_path).convert("RGB")
+        frame_img = video_frames[idx]
+
+        frame_img = to_pil_image(frame_img)
         
         agent_response = None
         if idx in model_response_formated:
