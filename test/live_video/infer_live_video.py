@@ -253,7 +253,6 @@ def infer_on_live_video(infer, query, skip, video_frames, system_prompt, output_
         infer.input_query_stream(conversation)
         model_response_list = infer.inference(verbose=True, total=len(video_frames))
         
-        return
         results = round_numbers(infer.debug_data_list, 3)
         with open(output_file, "w") as f:
             json.dump(results, f)

@@ -69,7 +69,8 @@ def generate_plot(up_to_idx, data, agent_response):
     # ax.plot(times, informative_scores, label="Informative Score")
     fig.patch.set_facecolor('#231f20')
     ax.set_facecolor('#231f20')
-    ax.plot(times, relevance_scores, label="Relevance Score", color="#0092CC", linewidth=3)
+    ax.plot(times, relevance_scores, label="Relevance Score", color="BLACK", linewidth=3)
+    ax.plot(times, informative_scores, label="Informativeness scores Score", color="BLUE", linewidth=3)
 
 
     # ax.plot(times, uncertainty_scores, label="Uncertainty Score")

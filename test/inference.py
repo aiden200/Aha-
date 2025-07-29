@@ -36,7 +36,7 @@ from utils.video_loader import check_metadata
 from test.static_cache import TrulyStaticCache
 
 class LiveInferForBenchmark:
-    def __init__(self, args, peft_model_id=None, sink_cache=False, alt_cache="default_sink") -> None:
+    def __init__(self, args, peft_model_id=None, sink_cache=True, alt_cache="default_sink") -> None:
         assert not (args.bf16 and args.fp16), "only one of --bf16 true and --fp16 true can be set"
         self.sink_cache = sink_cache
         self.alt_cache = alt_cache
@@ -247,10 +247,10 @@ class LiveInferForBenchmark:
         ).to('cuda')
 
         # If this is the first user query, re-initialize the cache with it as the sink.
-        # if self.sink_cache and not self.first_query_processed:
-        #     print("First user query received. Re-initializing cache to use it as the semantic sink.")
-        #     self._init_cache(instruction_ids=query_ids)
-        #     self.first_query_processed = True
+        if self.sink_cache and not self.first_query_processed:
+            # print("First user query received. Re-initializing cache to use it as the semantic sink.")
+            self._init_cache(instruction_ids=query_ids)
+            self.first_query_processed = True
 
 
         # For subsequent queries, process normally
@@ -648,8 +648,8 @@ if __name__ == '__main__':
         results = []
         infer = LiveInferForBenchmark(args)
 
-        ambiguous_prompt = True
-        unrelated_prompt = False
+        ambiguous_prompt = False
+        unrelated_prompt = True
 
 
         memory_usage = []
@@ -659,12 +659,12 @@ if __name__ == '__main__':
             video_uuid = video_name_with_extension[:-4]
             video_path = os.path.join(args.input_dir, video_name_with_extension)
             query = random.choice(query_templates) % captions[video_uuid]["query"]
-
+            print(query)
             if ambiguous_prompt:
                 query = random.choice(query_templates) % TVSUM_AMBIGUOUS_TITLES[video_uuid]["ambiguous_title"]
             elif unrelated_prompt:
                 query = random.choice(query_templates) % TVSUM_UNRELATED_TITLES[video_uuid]["unrelated_title"]
-
+            print(query)
             # nvmlInit()
             # handle = nvmlDeviceGetHandleByIndex(0) # Index 0 for the first GPU
             # handle2 = nvmlDeviceGetHandleByIndex(1) # Index 1 for the second GPU
@@ -793,7 +793,10 @@ if __name__ == '__main__':
         f_out.write(json.dumps(results, indent=4))
         f_out.flush()
     
-    elif args.test_dataset == "arl_scout" or args.test_dataset == "hubble_space" or args.test_dataset == "jkim_landing":
+    elif args.test_dataset == "arl_scout" \
+        or args.test_dataset == "hubble_space" \
+            or args.test_dataset == "jkim_landing"\
+                or args.test_dataset == "rocket_launch":
         import psutil
 
         monitor = GpuMonitor(sample_interval_seconds=0.2)
@@ -828,6 +831,12 @@ if __name__ == '__main__':
                 # print(len(video_frames), fps, video_duration)
             ticks = []
             caption = "NASA Astronaut Jonny Kim Soyuz MS-27 Docking"
+        
+        elif args.test_dataset == "rocket_launch":
+            if not skip:
+                video_frames, fps, video_duration = load_video_for_testing(frame_folder, output_fps=args.frame_fps, return_true_frames=False, max_num_frames=None)    
+            ticks = []
+            caption = "the critical milestones of the launch mission"
         if not skip:
             infer = LiveInferForBenchmark(args)
         else:

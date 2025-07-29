@@ -1,5 +1,5 @@
 output_dir=outputs/hisum
-pretrained_dir=aha_weights/
+pretrained_dir=outputs/aha
 mkdir -vp  ${output_dir}/eval
 
 if [ -f "${output_dir}/eval/hisum_test-random_prompt-pred.log" ]; then
@@ -15,13 +15,13 @@ python -u -m test.inference --grounding_mode true \
     --test_dataset hisum \
     --skip_eval false \
     --video_metadata_file datasets/hisum/videos_metadata.json \
-    --caption_metadata_file datasets/hisum/annotations/mr_hisum_metadata.csv \
-    --hisum_h5_file /data/yt8m/annotations/mr_hisum.h5 \
-    --anno_file datasets/hisum/annotations/split.json \
+    --caption_metadata_file datasets/hisum/mr_hisum_metadata.csv \
+    --hisum_h5_file datasets/hisum/mr_hisum.h5 \
+    --anno_file datasets/hisum/split.json \
     --lora_pretrained ${pretrained_dir}  \
     --no_query false \
     --stream_end_prob_threshold 1 \
-    --input_dir /data/yt8m/videos/ --frame_fps 1 --max_num_frames 400 \
+    --input_dir /mnt/training-data/yt8m/videos/ --frame_fps 1 --max_num_frames 400 \
     --test_fname datasets/hisum/annotations/test-random_prompt.json \
     --output_fname ${output_dir}/eval/hisum_test-random_prompt-pred.json \
     > ${output_dir}/eval/hisum_test-random_prompt-pred.log 
@@ -30,16 +30,16 @@ wait
 # --------------------
 # grid search
 # --------------------
-python -u -m test.grid_search --test_dataset hisum \
-    --pred_file ${output_dir}/eval/hisum_test-random_prompt-pred.json \
-    --gold_file /data/yt8m/annotations/mr_hisum.h5 
-wait
+# python -u -m test.grid_search --test_dataset hisum \
+#     --pred_file ${output_dir}/eval/hisum_test-random_prompt-pred.json \
+#     --gold_file /data/yt8m/annotations/mr_hisum.h5 
+# wait
 
 # --------------------
 # evaluate
 # --------------------
 python -u -m test.evaluate --func hisum \
     --pred_file ${output_dir}/eval/hisum_test-random_prompt-pred.json \
-    --gold_file /data/yt8m/annotations/mr_hisum.h5  \
+    --gold_file datasets/hisum/mr_hisum.h5  \
     --output_file ${output_dir}/eval/hisum_test-random_prompt-eval.json \
-    > ${output_dir}/eval/hisum_test-random_prompt-eval.log 2>&1 &
+    # > ${output_dir}/eval/hisum_test-random_prompt-eval.log 2>&1 &
