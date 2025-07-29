@@ -1,5 +1,5 @@
 
-output_dir=outputs/tvsum_dynamic_sink
+output_dir=outputs/tvsum_dynamic_sink2
 pretrained_dir=outputs/aha
 mkdir -vp  ${output_dir}/eval
 

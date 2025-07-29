@@ -257,7 +257,7 @@ def grid_search(args, param_grid, save_path, uncertainty=True):
         random.shuffle(indices)
         predictions = [predictions[i] for i in indices]
         import math
-        train, test = predictions[:math.floor(len(predictions)*.8)], predictions[:-int(len(predictions)*.2)]
+        train, test = predictions[:math.floor(len(predictions)*.8)], predictions[-int(len(predictions)*.2):]
 
         predictions = train
     
