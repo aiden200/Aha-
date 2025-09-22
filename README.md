@@ -265,7 +265,16 @@ This model should not be deployed in contexts that may infringe on personal priv
 
 
 # Acknowledgements
-ANONYMOUS
+This work was conducted as part of the author's AEOP Fellowship, with compute resources and mentorship provided by the Army Research Laboratory, West Coast (ARL-W).
+
+The codebase uses components in:
+- [VideoLLM-online](https://github.com/showlab/VideoLLM-online)
+- [MMDuet](https://github.com/yellow-binary-tree/MMDuet)
+- [LLaVA-NeXT](https://github.com/LLaVA-VL/LLaVA-NeXT)
+- [Mr.HiSum](https://github.com/MRHiSum/MR.HiSum) 
+- [ARL SCOUT](https://github.com/USArmyResearchLab/ARL-SCOUT)
+
+We thank the original authors for their contributions.
 
 
 # License
@@ -277,4 +286,13 @@ This project is licensed under the [Apache License 2.0](LICENSE).
 # Citation
 If you find this work useful in your research, please consider citing:
 
-ANONYMOUS
+```bibtex
+@inproceedings{chang2025aha,
+  title     = {Aha! - Predicting What Matters Next: Online Highlight Detection Without Looking Ahead},
+  author    = {Chang, Aiden and De Melo, Celso and Lukin, Stephanie},
+  booktitle = {Advances in Neural Information Processing Systems},
+  year      = {2025},
+  note      = {NeurIPS},
+  url       = {[https://neurips.cc/Conferences/2025](https://neurips.cc/virtual/2025/poster/119707)}
+}
+```
